@@ -37,6 +37,8 @@ Ouvrir <http://localhost:5173>. Vite sert uniquement l’interface : le navigate
 - **Progression** : erreurs à revoir, historique et classements par chapitre, y compris les élèves sans point.
 - **Contributions** : quatre propositions, réponses multiples, images, brouillons et validation administrateur avant publication.
 
+La bibliothèque des administrateurs et contributeurs présente un dossier par chapitre. Les questions existantes y sont rangées automatiquement selon leur chapitre, avec les compteurs de publication et de validation. Dans un dossier, la recherche, les filtres et l’export concernent ce chapitre ; une nouvelle question le présélectionne. L’administrateur peut changer le chapitre dans l’éditeur pour reclasser une question, qui repasse alors par la validation habituelle.
+
 Une réponse partielle, incorrecte ou hors délai en multijoueur vaut zéro. Le navigateur ne décide ni des points ni de l’échéance. En cloud, les RPC PostgreSQL contrôlent les droits, l’heure et les transitions de partie. Les joueurs interrogent l’état du salon environ chaque seconde ; il ne s’agit pas d’un flux Supabase Realtime.
 
 Les écrans sont conçus pour téléphone : quatre onglets, actions accessibles au pouce et quatre grandes réponses. Le manifeste permet un affichage de type application dans les navigateurs compatibles. Aucun service worker ni jeu hors connexion n’est fourni ; cette version n’est pas un binaire Android/iOS publié sur les stores.
