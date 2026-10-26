@@ -12,7 +12,7 @@ export function readSupabaseConfiguration(environment: SupabaseEnvironment): Sup
   const rawUrl = environment.VITE_SUPABASE_URL?.trim()
   const publishableKey = environment.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
 
-  if (!rawUrl || !publishableKey) throw new Error('Renseignez VITE_SUPABASE_URL et VITE_SUPABASE_PUBLISHABLE_KEY dans .env.local, puis redémarrez le serveur.')
+  if (!rawUrl || !publishableKey) throw new Error('Renseignez VITE_SUPABASE_URL et VITE_SUPABASE_PUBLISHABLE_KEY dans les variables de build Cloudflare Pages ou dans .env.local en développement, puis reconstruisez l’application.')
   if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey)) throw new Error('Utilisez la clé publique Supabase commençant par sb_publishable_. Les clés secrètes ne sont pas acceptées dans le frontend.')
 
   let url: URL

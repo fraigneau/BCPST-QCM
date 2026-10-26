@@ -15,7 +15,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "vue-tsc --noEmit",
     "supabase:check": "node --env-file=.env.local --experimental-strip-types scripts/check-supabase.ts",
-    "pages:check": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/check-pages.ts"
+    "pages:check": "node --experimental-strip-types scripts/check-pages.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

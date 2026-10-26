@@ -1,10 +1,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { loadEnv } from 'vite'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = resolve(root, 'dist')
 const failures: string[] = []
+const environment = loadEnv('production', root, 'VITE_')
 
 function requireCondition(condition: unknown, message: string) {
   if (!condition) failures.push(message)
@@ -56,19 +58,19 @@ try {
   requireCondition(!configuration.main && !configuration.compatibility_flags?.includes('nodejs_compat'), 'Ce site statique ne doit pas embarquer un Worker Node.js.')
 } catch { failures.push('wrangler.jsonc doit être un JSON valide sans commentaires.') }
 
-const backend = process.env.VITE_BACKEND?.trim() || 'supabase'
+const backend = environment.VITE_BACKEND?.trim() || 'supabase'
 requireCondition(backend === 'supabase', 'Un build Pages exige VITE_BACKEND=supabase ; le mode local nécessite le serveur Node.js.')
 requireCondition(/^24(?:\.\d+){0,2}$/.test(read('.node-version').trim()), '.node-version doit sélectionner Node.js 24.')
-const configuredUrl = process.env.VITE_SUPABASE_URL?.trim() || ''
+const configuredUrl = environment.VITE_SUPABASE_URL?.trim() || ''
 let origin = ''
 try {
   const url = new URL(configuredUrl)
   requireCondition(url.protocol === 'https:' && url.hostname.endsWith('.supabase.co') && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash, 'Le déploiement Pages attend une URL HTTPS de projet *.supabase.co, sans chemin ni identifiants.')
   origin = url.origin
 } catch { failures.push('VITE_SUPABASE_URL doit être renseignée avec l’URL HTTPS du projet.') }
-const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || ''
+const key = environment.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || ''
 requireCondition(/^sb_publishable_[A-Za-z0-9_-]+$/.test(key), 'VITE_SUPABASE_PUBLISHABLE_KEY doit contenir une clé publique sb_publishable_.')
-for (const [name, value] of Object.entries(process.env)) {
+for (const [name, value] of Object.entries(environment)) {
   if (!name.startsWith('VITE_') || !value) continue
   if (/(?:SECRET|SERVICE_ROLE|PRIVATE|PASSWORD|DATABASE)/i.test(name) || secretReason(value)) failures.push(`Variable publique interdite ou sensible : ${name}`)
 }

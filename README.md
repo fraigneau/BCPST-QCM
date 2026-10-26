@@ -54,6 +54,8 @@ Ouvrir <http://localhost:4173>, puis vérifier connexion, quiz, navigation direc
 
 La configuration fournie prépare Pages : build `npm run build`, sortie `dist`, Node.js 24, retour SPA, CSP et cache des assets. Aucune publication ni connexion au compte Cloudflare n’est réalisée par ces fichiers. Le [guide Cloudflare Pages](docs/CLOUDFLARE_PAGES.md) détaille les paramètres Production/Preview, les redirections Auth et la recette avant ouverture.
 
+Le fichier suivi `.env.production` fournit l’URL et la clé publique du projet QCM BCPST pour les builds Git Cloudflare. Le fichier personnel `.env.local` reste ignoré. Des variables de build Cloudflare peuvent remplacer cette configuration ; elles doivent rester complètes et valides, faute de quoi le build s’arrête avant publication.
+
 ## Démonstration locale
 
 Pour une démonstration autonome, définir `VITE_BACKEND=local` et `QCM_AUTH_MODE=local`, puis lancer :

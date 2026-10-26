@@ -45,7 +45,9 @@ Le fichier `wrangler.jsonc` fixe le nom, la sortie `./dist` et la date de compat
 
 ## Variables Production et Preview
 
-Ajouter ces trois variables de build dans chacun des environnements utilisés :
+Le dépôt contient `.env.production` avec le projet Supabase de QCM BCPST et sa clé publishable publique. Vite charge ce fichier pendant `npm run build`, même lorsqu’aucun `.env.local` n’est présent dans le clone Cloudflare. Ces valeurs sont prévues pour être visibles dans le navigateur ; ce fichier ne doit jamais contenir de mot de passe ni de clé secrète. Le build refuse désormais une configuration cloud absente ou invalide.
+
+Pour utiliser un autre projet Supabase, définir ces trois variables de build dans l’environnement concerné. Les variables Cloudflare ont priorité sur `.env.production` :
 
 | Variable | Valeur |
 | --- | --- |
