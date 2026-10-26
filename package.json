@@ -1,0 +1,35 @@
+{
+  "name": "qcm-bcpst",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "node --experimental-strip-types server/index.ts",
+    "dev:cloud": "vite --mode cloud --host 0.0.0.0",
+    "build": "vue-tsc --noEmit && vite build",
+    "start": "node --experimental-strip-types server/index.ts --production",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "vue-tsc --noEmit",
+    "supabase:check": "node --env-file=.env.local --experimental-strip-types scripts/check-supabase.ts",
+    "pages:check": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/check-pages.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "express": "^5.1.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "@vue/server-renderer": "^3.5.0",
+    "typescript": "~6.0.3",
+    "vite": "^7.1.0",
+    "vue-tsc": "^3.0.0"
+  }
+}

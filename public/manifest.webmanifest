@@ -1,0 +1,12 @@
+{
+  "name": "QCM BCPST",
+  "short_name": "QCM BCPST",
+  "description": "Réviser le vivant, comprendre la Terre. Quiz SVT et BCPST.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f6f4",
+  "theme_color": "#f3f6f4",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

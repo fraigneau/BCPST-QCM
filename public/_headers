@@ -1,0 +1,40 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/
+  Cache-Control: no-cache
+
+/*.html
+  Cache-Control: no-cache
+
+/connexion
+  Cache-Control: no-cache
+
+/practice
+  Cache-Control: no-cache
+
+/multiplayer
+  Cache-Control: no-cache
+
+/classements
+  Cache-Control: no-cache
+
+/progression
+  Cache-Control: no-cache
+
+/questions
+  Cache-Control: no-cache
+
+/admin
+  Cache-Control: no-cache
+
+/game/*
+  Cache-Control: no-cache
