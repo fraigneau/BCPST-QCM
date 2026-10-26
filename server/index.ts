@@ -6,11 +6,12 @@ import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { networkInterfaces } from 'node:os'
 import { z } from 'zod'
-import { openDatabase, publicUser, hashPassword, verifyPassword, readChapters, readQuestions, writeQuestion, readVisibleAnswers } from './database.ts'
+import { allocateLocalUsername, openDatabase, publicUser, hashPassword, verifyPassword, readChapters, readQuestions, writeQuestion, readVisibleAnswers } from './database.ts'
 import { ApiError, Games, type StoredGame } from './games.ts'
 import type { Bootstrap, LeaderboardRow, Progress, Question, User } from '../shared/types.ts'
 import { createSupabaseTokenVerifier, resolveAuthConfiguration, type AuthMode, type SupabaseAuthConfig, type SupabaseTokenVerifier } from './supabase-auth.ts'
 import { createVerifiedSessions } from './verified-sessions.ts'
+import { normalizeUsername, USERNAME_HELP, USERNAME_PATTERN } from '../shared/username.ts'
 
 export interface AppOptions { dbPath?: string; uploadsDir?: string; questionDurationMs?: number; correctionDurationMs?: number; authMode?: AuthMode; supabaseConfig?: SupabaseAuthConfig; verifySupabaseToken?: SupabaseTokenVerifier; streamAuthRecheckMs?: number }
 interface AuthIdentity { user: User; sessionToken: string; expiresAt: number; bearerToken: string | null }
@@ -63,8 +64,8 @@ export function createApp(options: AppOptions = {}) {
     if (collision || (existing && existing.auth_provider !== 'supabase')) throw new ApiError(409, 'Ce compte Supabase entre en conflit avec un compte local. Utilisez une autre adresse ou une base locale distincte ; aucun compte n’a été fusionné.')
     if (existing) {
       if (existing.role !== user.role) for (const stream of streams) if (stream.userId === user.id) stream.res.end()
-      if (existing.name !== user.name || existing.email !== user.email || existing.role !== user.role) db.prepare("UPDATE users SET name=?,email=?,role=? WHERE id=? AND auth_provider='supabase'").run(user.name, user.email, user.role, user.id)
-    } else db.prepare("INSERT INTO users(id,name,email,role,password_hash,created_at,auth_provider) VALUES (?,?,?,?,?,?,'supabase')").run(user.id, user.name, user.email, user.role, hashPassword(randomBytes(32).toString('hex')), user.createdAt)
+      if (existing.name !== user.name || existing.email !== user.email || existing.role !== user.role || existing.username !== (user.username ?? null)) db.prepare("UPDATE users SET name=?,email=?,role=?,username=? WHERE id=? AND auth_provider='supabase'").run(user.name, user.email, user.role, user.username ?? null, user.id)
+    } else db.prepare("INSERT INTO users(id,name,email,role,password_hash,created_at,auth_provider,username) VALUES (?,?,?,?,?,?,'supabase',?)").run(user.id, user.name, user.email, user.role, hashPassword(randomBytes(32).toString('hex')), user.createdAt, user.username ?? null)
     return user
   }
 
@@ -150,21 +151,26 @@ export function createApp(options: AppOptions = {}) {
   api.get('/config', (_req, res) => res.json({ authMode: authConfig.mode }))
   api.post('/auth/login', rateAuth, (req, res) => {
     if (authConfig.mode !== 'local') throw new ApiError(409, 'La connexion utilise Supabase. Les comptes de démonstration locaux sont désactivés.')
-    const input = parse(z.object({ email: z.email().max(254), password: z.string().min(1).max(128) }), req.body)
-    const row = db.prepare("SELECT * FROM users WHERE email=? COLLATE NOCASE AND auth_provider='local'").get(input.email.trim())
+    const input = parse(z.object({ identifier: z.string().trim().min(1).max(254).optional(), email: z.string().trim().min(1).max(254).optional(), password: z.string().min(1).max(128) }).refine(value => Boolean(value.identifier || value.email)), req.body)
+    const identifier = (input.identifier || input.email)!.trim()
+    const row = identifier.includes('@')
+      ? db.prepare("SELECT * FROM users WHERE email=? COLLATE NOCASE AND auth_provider='local'").get(identifier)
+      : db.prepare("SELECT * FROM users WHERE username=? COLLATE NOCASE AND auth_provider='local'").get(normalizeUsername(identifier))
     const fallback = '9b1c63b8cc6a74bd:8c95159755fbdc4e800111c48d2c47a558164d35dbdb69764b9c99c1e3e6ad22eb997fd34f3a97de70f2e49fd1d013bc493e6804e324ef0dc2ed681db8aafc36'
     const valid = verifyPassword(input.password, row ? String(row.password_hash) : fallback)
-    if (!row || !valid) throw new ApiError(401, 'Adresse e-mail ou mot de passe incorrect.')
+    if (!row || !valid) throw new ApiError(401, 'Identifiant ou mot de passe incorrect.')
     createSession(req, res, String(row.id))
     res.json({ user: publicUser(row) })
   })
   api.post('/auth/register', rateAuth, (req, res) => {
     if (authConfig.mode !== 'local') throw new ApiError(409, 'L’inscription utilise Supabase. L’inscription locale est désactivée.')
-    const input = parse(z.object({ name: z.string().trim().min(2).max(60), email: z.email().max(254), password: z.string().min(10).max(128) }), req.body)
+    const input = parse(z.object({ name: z.string().trim().min(2).max(60), email: z.email().max(254), username: z.string().transform(normalizeUsername).refine(value => USERNAME_PATTERN.test(value)).optional(), password: z.string().min(10).max(128) }), req.body)
     const email = input.email.trim().toLowerCase()
     if (db.prepare('SELECT id FROM users WHERE email=?').get(email)) throw new ApiError(409, 'Cette adresse e-mail possède déjà un compte.')
-    const user: User = { id: randomUUID(), name: input.name, email, role: 'student', createdAt: new Date().toISOString() }
-    db.prepare('INSERT INTO users(id,name,email,role,password_hash,created_at) VALUES (?,?,?,?,?,?)').run(user.id, user.name, user.email, user.role, hashPassword(input.password), user.createdAt)
+    const username = input.username ?? allocateLocalUsername(db, input.name)
+    if (db.prepare("SELECT id FROM users WHERE username=? COLLATE NOCASE AND auth_provider='local'").get(username)) throw new ApiError(409, 'Ce pseudo est déjà utilisé. Choisis-en un autre.')
+    const user: User = { id: randomUUID(), name: input.name, username, email, role: 'student', createdAt: new Date().toISOString() }
+    db.prepare('INSERT INTO users(id,name,email,role,password_hash,created_at,username) VALUES (?,?,?,?,?,?,?)').run(user.id, user.name, user.email, user.role, hashPassword(input.password), user.createdAt, username)
     createSession(req, res, user.id)
     res.status(201).json({ user })
   })
@@ -186,6 +192,16 @@ export function createApp(options: AppOptions = {}) {
     res.json({})
   })
   api.use(auth)
+
+  api.patch('/profile/username', (req, res) => {
+    if (authConfig.mode !== 'local') throw new ApiError(409, 'La modification du pseudo se fait depuis le site en ligne pour ce compte.')
+    const input = parse(z.object({ username: z.string().transform(normalizeUsername) }).strict(), req.body)
+    if (!USERNAME_PATTERN.test(input.username)) throw new ApiError(400, USERNAME_HELP)
+    const user = userOf(res)
+    if (db.prepare("SELECT id FROM users WHERE username=? COLLATE NOCASE AND auth_provider='local' AND id<>?").get(input.username, user.id)) throw new ApiError(409, 'Ce pseudo est déjà utilisé. Choisis-en un autre.')
+    db.prepare("UPDATE users SET username=? WHERE id=? AND auth_provider='local'").run(input.username, user.id)
+    res.json(publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(user.id)!))
+  })
 
   function progress(userId: string): Progress {
     const rows = readVisibleAnswers(db, userId)

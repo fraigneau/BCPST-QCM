@@ -15,9 +15,17 @@ function fixture(mode: 'supabase' | 'local' = 'supabase') {
   let listener: ((event: string, current: unknown) => void) | undefined
   let cleared = 0
   let signupInput: unknown
+  let usernameInput: unknown
+  let usernameError: { context: Response } | null = null
+  let available = true
+  let usernameWait: Promise<void> | undefined
   const requests: { path: string; headers: Headers; body: unknown }[] = []
   let intercept: ((path: string) => Promise<Response> | undefined) | undefined
-  const client = { auth: {
+  const client = { rpc: async () => ({ data: available, error: null }), functions: { invoke: async (_name: string, options: { body: unknown }) => {
+    usernameInput = options.body
+    if (usernameWait) await usernameWait
+    return { data: usernameError ? null : { access_token: 'token-bob', refresh_token: 'refresh-bob' }, error: usernameError }
+  } }, auth: {
     onAuthStateChange: (callback: typeof listener) => { listener = callback; return { data: { subscription: { unsubscribe: () => { listener = undefined } } } } },
     getSession: async () => ({ data: { session: current }, error: null }),
     signInWithPassword: async (input: { email: string }) => {
@@ -27,6 +35,7 @@ function fixture(mode: 'supabase' | 'local' = 'supabase') {
       return { data: { session: current }, error: null }
     },
     signUp: async (input: unknown) => { signupInput = input; return { data: { session: null, user: null }, error: null } },
+    setSession: async (tokens: { access_token: string }) => { current = { user: { id: bob.id }, access_token: tokens.access_token }; listener?.('SIGNED_IN', current); return { error: null } },
     signOut: async () => { current = null; listener?.('SIGNED_OUT', null); return { error: null } },
   } } as unknown as SupabaseClient
   const service = createSessionService(state, {
@@ -43,7 +52,10 @@ function fixture(mode: 'supabase' | 'local' = 'supabase') {
       return response({})
     },
   })
-  return { state, service, requests, get cleared() { return cleared }, get signupInput() { return signupInput },
+  return { state, service, requests, get cleared() { return cleared }, get signupInput() { return signupInput }, get usernameInput() { return usernameInput },
+    setAvailable: (value: boolean) => { available = value },
+    failUsername: (status: number) => { usernameError = { context: response({}, status) } },
+    delayUsername: (wait: Promise<void>) => { usernameWait = wait },
     setCurrent: (user: User) => { current = { user: { id: user.id }, access_token: `token-${user.id}` } },
     intercept: (callback: typeof intercept) => { intercept = callback },
     event: (event: string) => listener?.(event, current),
@@ -78,8 +90,66 @@ test('connexion locale explicite : cookie conservé et aucun appel au SDK cloud'
   t.after(f.service.dispose)
   await f.service.signIn('admin@herbier.local', 'Herbier2026!')
   assert.equal(f.state.user?.id, alice.id)
-  assert.deepEqual(f.requests.find(r => r.path === '/api/auth/login')?.body, { email: 'admin@herbier.local', password: 'Herbier2026!' })
+  assert.deepEqual(f.requests.find(r => r.path === '/api/auth/login')?.body, { identifier: 'admin@herbier.local', password: 'Herbier2026!' })
   assert.equal(f.requests.at(-1)?.headers.has('Authorization'), false)
+})
+
+test('connexion par pseudo : la fonction reçoit les identifiants et le SDK installe la vraie session', async t => {
+  const f = fixture()
+  t.after(f.service.dispose)
+  await f.service.signIn('  YaNN  ', 'FixtureOnly2026!')
+  assert.deepEqual(f.usernameInput, { identifier: 'yann', password: 'FixtureOnly2026!' })
+  assert.equal(f.state.user?.id, bob.id)
+  assert.equal(f.requests.find(request => request.path === '/api/bootstrap')?.headers.get('Authorization'), 'Bearer token-bob')
+  assert.ok(f.requests.every(request => !JSON.stringify(request.body).includes('FixtureOnly2026!')))
+})
+
+test('un échec de connexion pseudo ne crée aucune session et distingue la panne du mauvais mot de passe', async t => {
+  for (const status of [401, 404, 429, 503]) {
+    const f = fixture()
+    t.after(f.service.dispose)
+    f.failUsername(status)
+    await assert.rejects(f.service.signIn('yann', 'wrong'), status === 401 ? /Identifiant ou mot de passe incorrect/ : status === 429 ? /Trop de tentatives/ : /Utilise ton adresse e-mail/)
+    assert.equal(f.state.user, null)
+    assert.ok(!f.requests.some(request => request.path === '/api/bootstrap'))
+  }
+})
+
+test('une réponse de connexion pseudo terminée après déconnexion ne rétablit pas la session', async t => {
+  const f = fixture()
+  t.after(f.service.dispose)
+  let release!: () => void
+  f.delayUsername(new Promise<void>(resolve => { release = resolve }))
+  const pending = f.service.signIn('yann', 'FixtureOnly2026!')
+  await new Promise(resolve => setTimeout(resolve, 0))
+  await f.service.signOut()
+  release()
+  await assert.rejects(pending, /session a changé/)
+  assert.equal(f.state.user, null)
+  await assert.rejects(f.service.headers(), /Connectez-vous/)
+})
+
+test('l’inscription vérifie un pseudo normalisé sans transmettre de rôle et refuse un doublon', async t => {
+  const f = fixture()
+  t.after(f.service.dispose)
+  await f.service.signUp({ name: 'Yann', username: '  YaNN ', email: 'yann@example.test', password: 'FixtureOnly2026!' })
+  assert.deepEqual(f.signupInput, { email: 'yann@example.test', password: 'FixtureOnly2026!', options: { data: { display_name: 'Yann', username: 'yann' } } })
+  f.setAvailable(false)
+  await assert.rejects(f.service.signUp({ name: 'Yann', username: 'yann', email: 'another@example.test', password: 'FixtureOnly2026!' }), /déjà utilisé/)
+})
+
+test('changer de pseudo met à jour le profil courant et ne peut pas changer d’identité', async t => {
+  const f = fixture()
+  t.after(f.service.dispose)
+  await f.service.signIn(alice.email, 'MotDePasse2026!')
+  f.intercept(path => path === '/api/profile/username' ? Promise.resolve(response({ ...alice, username: 'alice.bcpst' })) : undefined)
+  await f.service.setUsername(' Alice.BCPST ')
+  assert.equal(f.state.user?.username, 'alice.bcpst')
+  assert.equal(f.state.bootstrap?.user.username, 'alice.bcpst')
+  assert.deepEqual(f.requests.at(-1)?.body, { username: 'alice.bcpst' })
+  f.intercept(path => path === '/api/profile/username' ? Promise.resolve(response(bob)) : undefined)
+  await assert.rejects(f.service.setUsername('bob'), /session a changé/)
+  assert.equal(f.state.user?.id, alice.id)
 })
 
 test('bootstrap tardif d’Alice ignoré après connexion de Bob, même si la requête échoue', async t => {

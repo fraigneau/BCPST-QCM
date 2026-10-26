@@ -15,7 +15,7 @@ export const router = createRouter({
     { path: '/admin', name: 'admin', component: () => import('./views/AdminView.vue'), meta: { roles: ['admin'] } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { top: 0 },
 })
 
 router.beforeEach(async to => {

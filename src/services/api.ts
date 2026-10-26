@@ -29,6 +29,7 @@ export const refreshSession = service.refreshSession
 export const signIn = service.signIn
 export const signUp = service.signUp
 export const signOut = service.signOut
+export const setUsername = service.setUsername
 export const authenticationHeaders = service.headers
 export const sessionGeneration = service.generation
 

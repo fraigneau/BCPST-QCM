@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { randomUUID, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { Chapter, Question, User } from '../shared/types.ts'
 import { chapters, seedQuestions } from './seed.ts'
+import { normalizeUsername, usernameBase, USERNAME_PATTERN } from '../shared/username.ts'
 
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString('hex')
@@ -16,6 +17,17 @@ export function verifyPassword(password: string, hash: string) {
   const actual = scryptSync(password, salt, 64)
   const expected = Buffer.from(encoded, 'hex')
   return actual.length === expected.length && timingSafeEqual(actual, expected)
+}
+
+export function allocateLocalUsername(db: DatabaseSync, value: string, exceptId = ''): string {
+  const base = usernameBase(value)
+  let username = base
+  let suffix = 2
+  while (db.prepare("SELECT id FROM users WHERE username=? COLLATE NOCASE AND auth_provider='local' AND id<>?").get(username, exceptId)) {
+    const ending = `_${suffix++}`
+    username = `${base.slice(0, 24 - ending.length)}${ending}`
+  }
+  return username
 }
 
 export function openDatabase(path: string) {
@@ -46,6 +58,7 @@ export function openDatabase(path: string) {
     CREATE INDEX IF NOT EXISTS questions_status ON questions(status,chapter_id);
   `)
   if (!db.prepare('PRAGMA table_info(users)').all().some(column => column.name === 'auth_provider')) db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local' CHECK(auth_provider IN ('local','supabase'))")
+  if (!db.prepare('PRAGMA table_info(users)').all().some(column => column.name === 'username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT')
   if (!db.prepare('PRAGMA table_info(games)').all().some(column => column.name === 'status')) {
     db.exec("ALTER TABLE games ADD COLUMN status TEXT NOT NULL DEFAULT 'waiting'")
     for (const row of db.prepare('SELECT id,body FROM games').all()) db.prepare('UPDATE games SET status=? WHERE id=?').run(JSON.parse(String(row.body)).status, String(row.id))
@@ -60,6 +73,13 @@ export function openDatabase(path: string) {
   ]) {
     if (!db.prepare('SELECT id FROM users WHERE id=?').get(id!)) insertUser.run(id!, name!, email!, role!, hashPassword('Herbier2026!'), now)
   }
+  const demoNames: Record<string, string> = { 'demo-student': 'eleve', 'demo-contributor': 'contributeur', 'demo-admin': 'admin' }
+  for (const row of db.prepare("SELECT id,name,username FROM users WHERE auth_provider='local' ORDER BY created_at,id").all()) {
+    const current = typeof row.username === 'string' ? normalizeUsername(row.username) : ''
+    const username = allocateLocalUsername(db, USERNAME_PATTERN.test(current) ? current : demoNames[String(row.id)] || String(row.name), String(row.id))
+    if (row.username !== username) db.prepare('UPDATE users SET username=? WHERE id=?').run(username, String(row.id))
+  }
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_local_username ON users(username COLLATE NOCASE) WHERE auth_provider='local'")
   for (const chapter of chapters) db.prepare('INSERT OR IGNORE INTO chapters(id,body) VALUES (?,?)').run(chapter.id, JSON.stringify(chapter))
   if (!db.prepare("SELECT value FROM metadata WHERE key='seeded'").get()) {
     db.exec('BEGIN')
@@ -76,7 +96,7 @@ export function openDatabase(path: string) {
 }
 
 export function publicUser(row: Record<string, unknown>): User {
-  return { id: String(row.id), name: String(row.name), email: String(row.email), role: row.role as User['role'], createdAt: String(row.created_at) }
+  return { id: String(row.id), name: String(row.name), email: String(row.email), ...(typeof row.username === 'string' ? { username: row.username } : {}), role: row.role as User['role'], createdAt: String(row.created_at) }
 }
 
 export function readChapters(db: DatabaseSync): Chapter[] {

@@ -28,6 +28,8 @@ Le backend historique peut également utiliser des identités Supabase avec des 
 
 Le SDK Supabase garde et renouvelle la session du navigateur. Les RPC reçoivent le JWT utilisateur ; les contrôles reposent sur `auth.uid()` et le profil autorisé. La clé publishable est publique et ne remplace pas ces permissions. Aucune clé secrète Supabase ni connexion PostgreSQL privilégiée n’est fournie au frontend.
 
+La connexion e-mail appelle Auth directement. La connexion par pseudo utilise la fonction Supabase `username-login` pour retrouver l’adresse en privé et demander la session à Auth ; le SDK installe ensuite les jetons obtenus. `profiles.username` est unique et indépendant du nom affiché et du rôle. La disponibilité publique d’un pseudo renvoie seulement un booléen ; la modification exige le compte actif du propriétaire. Voir [activer la connexion par pseudo](USERNAME_LOGIN.md).
+
 Une inscription crée un profil `student`. Les métadonnées utilisateur ne donnent aucun rôle privilégié. Les promotions `contributor` ou `admin` se font par une opération de confiance dans Supabase. L’administration cloud affiche les rôles en lecture seule. Les tables exposées sont protégées par RLS ; les bonnes réponses et les commandes internes privilégiées sont isolées dans le schéma privé.
 
 Un contributeur peut proposer et modifier ses questions autorisées, mais ne peut pas les publier lui-même. L’administrateur publie ou refuse avec un motif. Les RPC valident l’énoncé, les quatre propositions distinctes, les indices exacts de bonnes réponses, le chapitre et les images. L’état visible par un élève n’expose pas la correction avant la phase autorisée.

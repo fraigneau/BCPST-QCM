@@ -30,7 +30,7 @@ export function resolveAuthConfiguration(options: { mode?: AuthMode; config?: Su
   return { mode: 'supabase' as const, config: { url: parsedUrl.href.replace(/\/$/, ''), publishableKey } }
 }
 
-const profileSchema = z.object({ id: z.uuid(), name: z.string().trim().min(2).max(60), email: z.email().max(254), role: z.enum(['student', 'contributor', 'admin']), createdAt: z.iso.datetime({ offset: true }), disabled_at: z.unknown().optional(), disabledAt: z.unknown().optional() })
+const profileSchema = z.object({ id: z.uuid(), name: z.string().trim().min(2).max(60), username: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,23}$/).optional(), email: z.email().max(254), role: z.enum(['student', 'contributor', 'admin']), createdAt: z.iso.datetime({ offset: true }), disabled_at: z.unknown().optional(), disabledAt: z.unknown().optional() })
 const claimsSchema = z.object({ sub: z.uuid(), exp: z.number().finite() })
 
 const boundedFetch: typeof fetch = (input, init) => fetch(input, { ...init, signal: AbortSignal.any([...(init?.signal ? [init.signal] : []), AbortSignal.timeout(5000)]) })
@@ -61,8 +61,8 @@ export function createSupabaseTokenVerifier(config: SupabaseAuthConfig, factory:
       }
       const profile = profileSchema.safeParse(result.data)
       if (!profile.success || profile.data.id !== identity.data.user.id || profile.data.disabled_at || profile.data.disabledAt) throw new ApiError(403, 'Ce profil Supabase est désactivé ou invalide.')
-      const { id, name, email, role, createdAt } = profile.data
-      return { user: { id, name, email: email.toLowerCase(), role, createdAt }, expiresAt: claims.exp * 1000 }
+      const { id, name, username, email, role, createdAt } = profile.data
+      return { user: { id, name, email: email.toLowerCase(), ...(username ? { username } : {}), role, createdAt }, expiresAt: claims.exp * 1000 }
     } catch (error) {
       if (error instanceof ApiError) throw error
       throw new ApiError(503, 'Le service d’authentification Supabase est indisponible.')

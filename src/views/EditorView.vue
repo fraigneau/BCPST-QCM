@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Check, ChevronDown, Download, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, Search, Send, Trash2, Upload, X } from '../components/icons'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, ArrowRight, Check, Download, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, Search, Send, Trash2, Upload, X } from '../components/icons'
+import QuestionFolders from '../components/QuestionFolders.vue'
 import type { Question, QuestionInput, QuestionStatus } from '../../shared/types'
 import { api, backendMode, post, session } from '../services/api'
 import { notify } from '../services/feedback'
+import { filterLibraryQuestions } from '../services/question-library'
+
+const route = useRoute()
+const router = useRouter()
 
 const questions = ref<Question[]>([])
 const loading = ref(true)
 const search = ref('')
 const statusFilter = ref('all')
-const chapterFilter = ref('all')
+const difficultyFilter = ref('all')
+const chapterFilter = computed(() => route.query.chapter === 'all' ? 'all' : session.bootstrap?.chapters.some(chapter => chapter.id === route.query.chapter) ? String(route.query.chapter) : 'folders')
+const activeChapter = computed(() => session.bootstrap?.chapters.find(chapter => chapter.id === chapterFilter.value))
+const browsingFolders = computed(() => chapterFilter.value === 'folders' && !search.value.trim())
 const error = ref('')
 const busy = ref(false)
 const transferBusy = ref(false)
@@ -20,21 +29,34 @@ const deleteId = ref<string | null>(null)
 const formError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const importInput = ref<HTMLInputElement | null>(null)
-const blank = (): QuestionInput => ({ chapterId: session.bootstrap?.chapters[0]?.id || '', difficulty: 'easy', prompt: '', options: ['', '', '', ''], correctAnswers: [], explanation: '', image: null, status: 'draft' })
+const blank = (): QuestionInput => ({ chapterId: activeChapter.value?.id || session.bootstrap?.chapters[0]?.id || '', difficulty: 'easy', prompt: '', options: ['', '', '', ''], correctAnswers: [], explanation: '', image: null, status: 'draft' })
 const form = ref<QuestionInput>(blank())
 const allowed = computed(() => session.user?.role === 'admin' || session.user?.role === 'contributor')
 const chapters = computed(() => session.bootstrap?.chapters || [])
 const statusNames: Record<QuestionStatus, string> = { draft: 'Brouillon', pending: 'À valider', published: 'Publiée', rejected: 'À retravailler' }
 const difficultyNames = { easy: 'Facile', medium: 'Intermédiaire', hard: 'Difficile' }
-const filtered = computed(() => questions.value.filter(question => (statusFilter.value === 'all' || question.status === statusFilter.value) && (chapterFilter.value === 'all' || question.chapterId === chapterFilter.value) && `${question.prompt} ${question.explanation}`.toLocaleLowerCase('fr').includes(search.value.toLocaleLowerCase('fr'))))
+const filters = computed(() => ({ chapterId: activeChapter.value?.id, status: statusFilter.value === 'all' ? undefined : statusFilter.value, difficulty: difficultyFilter.value === 'all' ? undefined : difficultyFilter.value, search: search.value }))
+const filtered = computed(() => filterLibraryQuestions(questions.value, filters.value))
 const pendingCount = computed(() => questions.value.filter(question => question.status === 'pending').length)
 const publishedCount = computed(() => questions.value.filter(question => question.status === 'published').length)
+watch(chapterFilter, () => { search.value = ''; statusFilter.value = 'all'; difficultyFilter.value = 'all' })
+watch(browsingFolders, browsing => { if (browsing) { statusFilter.value = 'all'; difficultyFilter.value = 'all' } })
 function chapterName(id: string) { return chapters.value.find(chapter => chapter.id === id)?.shortName || id }
 function canEdit(question: Question) { return session.user?.role === 'admin' || (question.authorId === session.user?.id && question.status !== 'published') }
 async function load() {
+  loading.value = true
+  error.value = ''
   try { questions.value = await api<Question[]>('/questions') }
   catch (cause) { error.value = (cause as Error).message }
   finally { loading.value = false }
+}
+async function openFolder(chapterId?: string) {
+  search.value = ''
+  statusFilter.value = 'all'
+  difficultyFilter.value = 'all'
+  await router.push({ path: '/questions', query: chapterId ? { chapter: chapterId } : {} })
+  await nextTick()
+  document.getElementById('library-title')?.focus()
 }
 function open(question?: Question) {
   formError.value = ''
@@ -84,14 +106,15 @@ async function uploadImage(event: Event) {
   finally { uploading.value = false; input.value = '' }
 }
 async function exportQuestions() {
+  const selection = { ...filters.value }
   transferBusy.value = true
   error.value = ''
   try {
-    const data = await api<Question[]>('/questions/export')
+    const data = filterLibraryQuestions(await api<Question[]>('/questions/export'), selection)
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `qcm-bcpst-questions-${new Date().toISOString().slice(0, 10)}.json`
+    anchor.download = `qcm-bcpst-${selection.chapterId || 'questions'}-${new Date().toISOString().slice(0, 10)}.json`
     anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
     notify(`${data.length} questions exportées.`)
@@ -119,6 +142,13 @@ let previousFocus: HTMLElement | null = null
 let previousOverflow = ''
 let previousInert = false
 const dialogOpen = computed(() => showEditor.value || !!deleteId.value)
+function dismissDialogOnNavigation() {
+  if (!dialogOpen.value) return true
+  if (!busy.value && !uploading.value) { showEditor.value = false; deleteId.value = null }
+  return false
+}
+onBeforeRouteUpdate(dismissDialogOnNavigation)
+onBeforeRouteLeave(dismissDialogOnNavigation)
 watch(dialogOpen, async opened => {
   const root = document.getElementById('app')
   if (opened) {
@@ -155,9 +185,50 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="!allowed" class="panel empty-state"><h1>Espace réservé aux contributeurs</h1><p>Votre compte élève vous permet de réviser et de participer aux parties.</p><RouterLink class="button" to="/practice">Réviser</RouterLink></div>
   <div v-else class="editor-page">
-    <header class="page-heading"><div><h1>Questions</h1><p class="muted">Crée et propose tes QCM.</p></div><button class="button" @click="open()"><Plus :size="18" />Nouvelle question</button></header>
+    <header class="page-heading"><div><h1>Questions</h1><p class="muted">Tes QCM, rangés par chapitre.</p></div><button class="button" @click="open()"><Plus :size="18" />Nouvelle question</button></header>
     <div class="editor-stats"><div><span class="stat-icon"><FilePlus2 :size="20" /></span><strong>{{ questions.length }}</strong><p>questions accessibles</p></div><div><span class="stat-icon published-icon"><Check :size="20" /></span><strong>{{ publishedCount }}</strong><p>publiées dans les quiz</p></div><div><span class="stat-icon pending-icon"><Send :size="19" /></span><strong>{{ pendingCount }}</strong><p>en attente de validation</p></div></div>
-    <section class="panel library-panel"><div class="library-top"><h2>La bibliothèque</h2><div class="transfer-actions"><input ref="importInput" class="hidden-input" type="file" accept="application/json,.json" @change="importQuestions"><button class="button ghost" :disabled="transferBusy" @click="importInput?.click()"><Upload :size="15" />Importer</button><button class="button ghost" :disabled="transferBusy" @click="exportQuestions"><Download :size="15" />Exporter</button></div></div><div class="library-filters"><div class="search-box"><Search :size="17" /><input v-model="search" placeholder="Rechercher une question…" aria-label="Rechercher une question"></div><select v-model="chapterFilter" class="select" aria-label="Filtrer par chapitre"><option value="all">Tous les chapitres</option><option v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">{{ chapter.shortName }}</option></select><select v-model="statusFilter" class="select" aria-label="Filtrer par statut"><option value="all">Tous les statuts</option><option v-for="(label, key) in statusNames" :key="key" :value="key">{{ label }}</option></select></div><p v-if="error" class="form-error" role="alert">{{ error }}</p><div v-if="loading" class="empty-state"><LoaderCircle :size="24" class="spin" /><p>Chargement de la bibliothèque…</p></div><div v-else-if="!filtered.length" class="empty-state"><FilePlus2 :size="29" /><h3>{{ questions.length ? 'Aucun résultat pour ces filtres.' : 'Votre première question vous attend.' }}</h3><p>{{ questions.length ? 'Essayez un autre mot ou un autre chapitre.' : 'Un énoncé clair, quatre propositions et une correction expliquée.' }}</p><button v-if="!questions.length" class="button secondary" @click="open()">Créer une question</button></div><div v-else class="question-list"><article v-for="question in filtered" :key="question.id" class="question-row"><div class="question-thumbnail"><img v-if="question.image" :src="question.image" alt=""><ImagePlus v-else :size="19" :stroke-width="1.2" /></div><div class="question-main"><div class="row-labels"><span>{{ chapterName(question.chapterId) }}</span><span>·</span><span>{{ difficultyNames[question.difficulty] }}</span><span v-if="question.correctAnswers.length > 1" class="multiple-label">Réponses multiples</span></div><h3>{{ question.prompt }}</h3><p v-if="question.reviewNote" class="review-note">Retour de validation : {{ question.reviewNote }}</p></div><div class="question-status"><span class="status-pill" :class="question.status">{{ statusNames[question.status] }}</span><small>{{ new Date(question.updatedAt).toLocaleDateString('fr-FR') }}</small></div><div v-if="canEdit(question)" class="row-actions"><button class="icon-button" aria-label="Modifier la question" @click="open(question)"><Pencil :size="16" /></button><button class="icon-button delete-button" aria-label="Supprimer la question" @click="deleteId = question.id"><Trash2 :size="16" /></button></div></article></div><div class="library-footer"><span>{{ filtered.length }} question{{ filtered.length > 1 ? 's' : '' }}</span><span>Les nouvelles questions sont validées avant publication.</span></div></section>
+    <section class="panel library-panel" aria-label="Bibliothèque de questions">
+      <div class="library-top">
+        <div class="library-location">
+          <button v-if="!browsingFolders" class="button ghost folder-back" aria-label="Retour aux dossiers" @click="openFolder()"><ArrowLeft :size="18" />Dossiers</button>
+          <h2 id="library-title" tabindex="-1">{{ browsingFolders ? 'Les dossiers' : activeChapter?.name || (chapterFilter === 'folders' ? 'Résultats dans tous les dossiers' : 'Toutes les questions') }}</h2>
+          <p class="muted library-description">{{ browsingFolders ? 'Un dossier par chapitre. Ouvre un dossier pour gérer ses questions.' : activeChapter ? activeChapter.description : 'Retrouve les questions de toute la bibliothèque.' }}</p>
+        </div>
+        <div class="transfer-actions">
+          <input ref="importInput" class="hidden-input" type="file" accept="application/json,.json" @change="importQuestions">
+          <button class="button ghost" :disabled="transferBusy" @click="importInput?.click()"><Upload :size="15" />Importer</button>
+          <button class="button ghost" :disabled="transferBusy || loading || !filtered.length" @click="exportQuestions"><Download :size="15" />{{ activeChapter ? 'Exporter ce dossier' : 'Exporter' }}</button>
+        </div>
+      </div>
+      <div class="library-filters">
+        <div class="search-box"><Search :size="17" /><input v-model="search" :placeholder="activeChapter ? 'Rechercher dans ce dossier…' : 'Rechercher dans tous les dossiers…'" aria-label="Rechercher une question"><button v-if="search" class="icon-button" aria-label="Effacer la recherche" @click="search = ''"><X :size="17" /></button></div>
+        <template v-if="!browsingFolders">
+          <select v-model="statusFilter" class="select" aria-label="Filtrer par statut"><option value="all">Tous les statuts</option><option v-for="(label, key) in statusNames" :key="key" :value="key">{{ label }}</option></select>
+          <select v-model="difficultyFilter" class="select" aria-label="Filtrer par difficulté"><option value="all">Tous les niveaux</option><option v-for="(label, key) in difficultyNames" :key="key" :value="key">{{ label }}</option></select>
+        </template>
+      </div>
+      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+      <div v-if="loading" class="empty-state"><LoaderCircle :size="24" class="spin" /><p>Chargement de la bibliothèque…</p></div>
+      <div v-else-if="error" class="empty-state"><button class="button secondary" @click="load">Réessayer</button></div>
+      <template v-else-if="browsingFolders">
+        <QuestionFolders :chapters="chapters" :questions="questions" @open="openFolder" />
+        <button class="all-questions" @click="openFolder('all')"><span>Voir toutes les questions <small>{{ questions.length }}</small></span><ArrowRight :size="18" /></button>
+      </template>
+      <div v-else-if="!filtered.length" class="empty-state">
+        <FilePlus2 :size="29" /><h3>{{ search || statusFilter !== 'all' || difficultyFilter !== 'all' ? 'Aucune question pour ces filtres.' : activeChapter ? 'Ce dossier attend sa première question.' : 'La bibliothèque attend sa première question.' }}</h3>
+        <p>{{ search || statusFilter !== 'all' || difficultyFilter !== 'all' ? 'Essaie un autre mot ou modifie les filtres.' : activeChapter ? 'Crée une question directement dans ce chapitre.' : 'Crée une question et choisis son chapitre.' }}</p>
+        <button class="button secondary" @click="open()">Créer une question</button>
+      </div>
+      <div v-else class="question-list">
+        <article v-for="question in filtered" :key="question.id" class="question-row">
+          <div class="question-thumbnail"><img v-if="question.image" :src="question.image" alt=""><ImagePlus v-else :size="19" :stroke-width="1.2" /></div>
+          <div class="question-main"><div class="row-labels"><span>{{ chapterName(question.chapterId) }}</span><span>·</span><span>{{ difficultyNames[question.difficulty] }}</span><span v-if="question.correctAnswers.length > 1" class="multiple-label">Réponses multiples</span></div><h3>{{ question.prompt }}</h3><p v-if="question.reviewNote" class="review-note">Retour de validation : {{ question.reviewNote }}</p></div>
+          <div class="question-status"><span class="status-pill" :class="question.status">{{ statusNames[question.status] }}</span><small>{{ new Date(question.updatedAt).toLocaleDateString('fr-FR') }}</small></div>
+          <div v-if="canEdit(question)" class="row-actions"><button class="icon-button" aria-label="Modifier la question" @click="open(question)"><Pencil :size="16" /></button><button class="icon-button delete-button" aria-label="Supprimer la question" @click="deleteId = question.id"><Trash2 :size="16" /></button></div>
+        </article>
+      </div>
+      <div class="library-footer"><span>{{ browsingFolders ? chapters.length + ' dossiers · ' : '' }}{{ browsingFolders ? questions.length : filtered.length }} question{{ (browsingFolders ? questions.length : filtered.length) > 1 ? 's' : '' }}</span><span>Les nouvelles questions sont validées avant publication.</span></div>
+    </section>
     <Teleport to="body"><div v-if="showEditor" class="modal-backdrop" @click.self="close"><section class="editor-modal" role="dialog" aria-modal="true" aria-labelledby="editor-title"><header class="modal-header"><div><p class="eyebrow">L’atelier</p><h2 id="editor-title">{{ editingId ? 'Affiner une question' : 'Une nouvelle question' }}</h2></div><button class="icon-button" aria-label="Fermer l’éditeur" :disabled="busy || uploading" @click="close"><X :size="21" /></button></header><form @submit.prevent="save('pending')"><div class="modal-content"><div class="editor-config"><label class="field">Chapitre<select v-model="form.chapterId" class="select" required><option v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">{{ chapter.name }}</option></select></label><label class="field">Difficulté<select v-model="form.difficulty" class="select"><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label></div><label class="field">L’énoncé<textarea v-model="form.prompt" class="input" placeholder="Posez une question claire et précise…" rows="3" minlength="10" maxlength="2000" required></textarea></label><div class="image-field"><input ref="fileInput" class="hidden-input" type="file" :accept="backendMode === 'supabase' ? 'image/png,image/jpeg,image/webp' : 'image/png,image/jpeg,image/webp,image/gif'" @change="uploadImage"><div v-if="form.image" class="image-preview"><img :src="form.image" alt="Illustration de la question"><button type="button" class="icon-button" aria-label="Retirer l’image" @click="form.image = null"><X :size="17" /></button></div><button v-else type="button" class="upload-area" :disabled="uploading" @click="fileInput?.click()"><ImagePlus :size="24" /><span><strong>{{ uploading ? 'Envoi de l’image…' : 'Ajouter une illustration' }}</strong><small>Schéma, graphique, coupe… PNG, JPEG ou WebP · 2 Mo maximum</small></span><Plus :size="18" /></button></div><fieldset class="options-fieldset"><legend>Les quatre propositions <span>Sélectionnez toutes les bonnes réponses.</span></legend><div v-for="(_, index) in form.options" :key="index" class="option-edit" :class="{ 'is-correct': form.correctAnswers.includes(index) }"><span>{{ String.fromCharCode(65 + index) }}</span><input v-model="form.options[index]" :aria-label="`Proposition ${String.fromCharCode(65 + index)}`" :placeholder="`Proposition ${String.fromCharCode(65 + index)}`" maxlength="500" required><button type="button" class="correct-toggle" :aria-pressed="form.correctAnswers.includes(index)" :aria-label="`Marquer la proposition ${String.fromCharCode(65 + index)} comme correcte`" @click="toggleAnswer(index)"><Check :size="16" /></button></div></fieldset><label class="field explanation-label">La correction pédagogique<textarea v-model="form.explanation" class="input" placeholder="Expliquez pourquoi les réponses sont justes ou fausses. C’est ici que l’on apprend." rows="4" minlength="10" maxlength="5000" required></textarea></label><p v-if="formError" class="form-error" role="alert">{{ formError }}</p><p class="review-info">La question sera visible dans les quiz après validation par l’administrateur.</p></div><footer class="modal-footer"><button type="button" class="button secondary" :disabled="busy || uploading" @click="save('draft')">Brouillon</button><button class="button" :disabled="busy || uploading"><Send :size="17" />{{ busy ? 'Enregistrement…' : 'Soumettre' }}</button></footer></form></section></div><div v-if="deleteId" class="modal-backdrop" @click.self="!busy && (deleteId = null)"><section class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><Trash2 :size="27" /><h2 id="delete-title">Supprimer cette question ?</h2><p>Elle disparaîtra de la bibliothèque. Les résultats des séances déjà jouées seront conservés.</p><div><button class="button secondary" :disabled="busy" @click="deleteId = null">Conserver</button><button class="button danger" :disabled="busy" @click="remove">{{ busy ? 'Suppression…' : 'Supprimer' }}</button></div></section></div></Teleport>
   </div>
 </template>
@@ -172,7 +243,13 @@ onBeforeUnmount(() => {
 .library-panel { padding: 18px 16px; }
 .library-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
 .library-top h2 { font-size: 19px; }
-.transfer-actions { display: flex; gap: 4px; }
+.library-location { min-width: 0; width: 100%; }
+.library-location h2 { overflow-wrap: anywhere; line-height: 1.4; }
+.library-description { font-size: 14px; line-height: 1.6; margin-top: 6px; }
+.folder-back { padding: 8px 0; margin-bottom: 8px; }
+.all-questions { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; width: 100%; padding: 16px 2px; background: none; border: 0; color: var(--green); text-align: left; font-size: 15px; }
+.all-questions small { color: var(--muted); margin-left: 6px; }
+.transfer-actions { display: flex; gap: 4px; flex-wrap: wrap; max-width: 100%; }
 .transfer-actions .button { padding: 10px; min-height: 44px; font-size: 13px; }
 .library-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
 .search-box { display: flex; gap: 10px; align-items: center; grid-column: 1/-1; border: 1px solid #cad8ce; padding-inline: 12px; border-radius: 12px; background: #fff; }

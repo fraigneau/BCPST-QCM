@@ -32,10 +32,14 @@ Ouvrir <http://localhost:5173>. Vite sert uniquement l’interface : le navigate
 
 ## Réviser et jouer
 
+La connexion accepte un pseudo unique ou l’adresse e-mail, avec le même mot de passe. L’inscription demande un pseudo de 3 à 24 caractères et conserve une adresse e-mail pour la confirmation et la récupération. Le pseudo est modifiable dans « Moi ». En cloud, cette fonctionnalité exige la migration et la fonction Supabase décrites dans [USERNAME_LOGIN.md](docs/USERNAME_LOGIN.md) ; publier le frontend seul ne les installe pas. La connexion e-mail existante continue de passer directement par Supabase Auth.
+
 - **Révision solo** : chapitres et difficulté au choix, sans chronomètre, 100 points par bonne réponse, correction expliquée et progression à votre rythme.
 - **Défi multijoueur** : salon privé et code, mêmes questions, 30 secondes pour répondre, 100 points et jusqu’à 50 points de rapidité, puis correction commune de 5 secondes.
 - **Progression** : erreurs à revoir, historique et classements par chapitre, y compris les élèves sans point.
 - **Contributions** : quatre propositions, réponses multiples, images, brouillons et validation administrateur avant publication.
+
+La bibliothèque des administrateurs et contributeurs présente un dossier par chapitre. Les questions existantes y sont rangées automatiquement selon leur chapitre, avec les compteurs de publication et de validation. Dans un dossier, la recherche, les filtres et l’export concernent ce chapitre ; une nouvelle question le présélectionne. L’administrateur peut changer le chapitre dans l’éditeur pour reclasser une question, qui repasse alors par la validation habituelle.
 
 Une réponse partielle, incorrecte ou hors délai en multijoueur vaut zéro. Le navigateur ne décide ni des points ni de l’échéance. En cloud, les RPC PostgreSQL contrôlent les droits, l’heure et les transitions de partie. Les joueurs interrogent l’état du salon environ chaque seconde ; il ne s’agit pas d’un flux Supabase Realtime.
 

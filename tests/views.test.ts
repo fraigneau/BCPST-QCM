@@ -18,6 +18,7 @@ before(async () => {
   session = (await server.ssrLoadModule('/src/services/api.ts')).session
   views.set('App', (await server.ssrLoadModule('/src/App.vue')).default)
   views.set('QuizBoard', (await server.ssrLoadModule('/src/components/QuizBoard.vue')).default)
+  views.set('QuestionFolders', (await server.ssrLoadModule('/src/components/QuestionFolders.vue')).default)
   for (const name of ['Auth', 'Dashboard', 'Practice', 'Multiplayer', 'Game', 'Editor', 'Admin', 'Progress', 'Leaderboard']) views.set(name, (await server.ssrLoadModule(`/src/views/${name}View.vue`)).default)
 })
 
@@ -50,7 +51,8 @@ async function render(name: string, role: Role | null, url = '/', authMode: Auth
 
 test('la connexion se rend sans session et propose les trois profils de démonstration', async () => {
   const html = await render('Auth', null, '/connexion')
-  assert.match(html, /type="email"/)
+  assert.match(html, /type="text"/)
+  assert.match(html, /Pseudo ou adresse e-mail/)
   assert.match(html, /type="password"/)
   assert.match(html, /Contributeur/)
   assert.match(html, /Élève/)
@@ -60,7 +62,7 @@ test('la connexion se rend sans session et propose les trois profils de démonst
 test('la connexion Supabase présente un formulaire vide sans comptes de démonstration', async () => {
   const html = await render('Auth', null, '/connexion', 'supabase')
   assert.match(html, /Se connecter/)
-  assert.match(html, /autocomplete="email"/)
+  assert.match(html, /autocomplete="username"/)
   assert.match(html, /autocomplete="current-password"/)
   assert.ok(!html.includes('demo-access'))
   assert.ok(!html.includes('Explorez les trois espaces'))
@@ -125,6 +127,26 @@ test('les contributeurs disposent de leur bibliothèque et pas de la modération
   assert.match(admin, /uniquement à l’administrateur/)
 })
 
+test('les dossiers présentent les chapitres vides et les publications en attente sans afficher les corrections', async () => {
+  const question = { id: 'folder-q', chapterId: 'cellulaire', difficulty: 'easy', prompt: 'Énoncé qui ne doit pas apparaître dans les dossiers.', options: ['A','B','C','D'], correctAnswers: [0], explanation: 'Correction réservée à la question ouverte.', image: null, status: 'pending', authorId: 'test-admin', createdAt: '2026-10-01', updatedAt: '2026-10-01' }
+  const html = await renderToString(createSSRApp(views.get('QuestionFolders')!, { chapters, questions: [question, { ...question, id: 'folder-published', status: 'published' }] }))
+  assert.equal((html.match(/class="folder-row"/g) || []).length, 2)
+  assert.match(html, /Ouvrir le dossier Biologie cellulaire et génétique, 2 questions, 1 publiée, 1 à valider/)
+  assert.match(html, /Ouvrir le dossier Biologie végétale, 0 question, 0 publiée, 0 à valider/)
+  assert.ok(!html.includes(question.prompt))
+  assert.ok(!html.includes(question.explanation))
+})
+
+test('un lien de dossier ouvre le chapitre demandé et conserve un retour à la bibliothèque', async () => {
+  const html = await render('Editor', 'admin', '/questions?chapter=vegetale')
+  assert.match(html, /Biologie végétale/)
+  assert.match(html, /Retour aux dossiers/)
+  assert.match(html, /Rechercher dans ce dossier/)
+  assert.match(html, /Exporter ce dossier/)
+  assert.match(html, /Filtrer par difficulté/)
+  assert.ok(!html.includes('Filtrer par chapitre'))
+})
+
 test('l’administrateur dispose de la validation et de la gestion des utilisateurs', async () => {
   const admin = await render('Admin', 'admin', '/admin')
   assert.match(admin, /Validation des questions/)
@@ -175,6 +197,13 @@ test('le profil mobile donne accès aux outils selon le rôle et à la déconnex
     assert.equal(html.includes('href="/questions"'), role !== 'student')
     assert.equal(html.includes('href="/admin"'), role === 'admin')
   }
+})
+
+test('le profil permet de choisir son pseudo de connexion en conservant le nom affiché', async () => {
+  const html = await render('Progress', 'student', '/progression')
+  assert.match(html, /Camille Martin/)
+  assert.match(html, /Choisir mon pseudo/)
+  assert.match(html, /autocomplete="username"/)
 })
 
 function boardState(mode: 'solo' | 'multi'): GameState {
