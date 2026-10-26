@@ -26,6 +26,8 @@ Exécuter les tests SQL de `supabase/tests` dans une session de confiance. Ils d
 
 Sur le projet de développement `bogagjweldkzbgdvpxsw`, les cinq migrations ont été appliquées le 22 octobre 2026. Les tests SQL de jeu et de contenu passent avec leurs données annulées. La banque contient 50 questions publiées, réparties par dix dans les cinq chapitres ; le compte administrateur existant est conservé. Il ne faut pas réappliquer ces migrations dans ce projet.
 
+La migration supplémentaire `20261026160000_username_auth.sql` et la fonction `username-login` sont préparées pour la connexion par pseudo. Elles ne sont pas encore appliquées depuis cette session. Suivre [USERNAME_LOGIN.md](USERNAME_LOGIN.md) pour les activer ; le déploiement du frontend Cloudflare seul ne suffit pas.
+
 ## Comptes et rôles
 
 Le compte du tableau de bord Supabase et le compte Auth de l’application sont distincts. Le propriétaire doit utiliser un compte réel créé dans **Authentication → Users**, avec sa véritable adresse et un mot de passe conservé dans son gestionnaire personnel.

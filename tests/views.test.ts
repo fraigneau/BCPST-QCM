@@ -51,7 +51,8 @@ async function render(name: string, role: Role | null, url = '/', authMode: Auth
 
 test('la connexion se rend sans session et propose les trois profils de démonstration', async () => {
   const html = await render('Auth', null, '/connexion')
-  assert.match(html, /type="email"/)
+  assert.match(html, /type="text"/)
+  assert.match(html, /Pseudo ou adresse e-mail/)
   assert.match(html, /type="password"/)
   assert.match(html, /Contributeur/)
   assert.match(html, /Élève/)
@@ -61,7 +62,7 @@ test('la connexion se rend sans session et propose les trois profils de démonst
 test('la connexion Supabase présente un formulaire vide sans comptes de démonstration', async () => {
   const html = await render('Auth', null, '/connexion', 'supabase')
   assert.match(html, /Se connecter/)
-  assert.match(html, /autocomplete="email"/)
+  assert.match(html, /autocomplete="username"/)
   assert.match(html, /autocomplete="current-password"/)
   assert.ok(!html.includes('demo-access'))
   assert.ok(!html.includes('Explorez les trois espaces'))
@@ -196,6 +197,13 @@ test('le profil mobile donne accès aux outils selon le rôle et à la déconnex
     assert.equal(html.includes('href="/questions"'), role !== 'student')
     assert.equal(html.includes('href="/admin"'), role === 'admin')
   }
+})
+
+test('le profil permet de choisir son pseudo de connexion en conservant le nom affiché', async () => {
+  const html = await render('Progress', 'student', '/progression')
+  assert.match(html, /Camille Martin/)
+  assert.match(html, /Choisir mon pseudo/)
+  assert.match(html, /autocomplete="username"/)
 })
 
 function boardState(mode: 'solo' | 'multi'): GameState {

@@ -1,7 +1,7 @@
 export type Role = 'admin' | 'contributor' | 'student'
 export type Difficulty = 'easy' | 'medium' | 'hard'
 export type QuestionStatus = 'draft' | 'pending' | 'published' | 'rejected'
-export interface User { id: string; name: string; email: string; role: Role; createdAt: string }
+export interface User { id: string; name: string; email: string; username?: string; role: Role; createdAt: string }
 export interface Chapter { id: string; name: string; shortName: string; description: string; color: string; icon: string }
 export interface Question { id: string; chapterId: string; difficulty: Difficulty; prompt: string; options: string[]; correctAnswers: number[]; explanation: string; image: string | null; status: QuestionStatus; authorId: string; createdAt: string; updatedAt: string; reviewNote?: string }
 export type PublicQuestion = Omit<Question, 'correctAnswers' | 'explanation' | 'authorId' | 'reviewNote'>

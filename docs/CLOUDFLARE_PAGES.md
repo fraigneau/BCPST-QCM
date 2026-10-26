@@ -8,6 +8,7 @@ Ce guide prépare une configuration à relire avant publication. La présence de
 
 1. Appliquer et vérifier les migrations Supabase de `supabase/migrations` dans leur ordre de nom, sans rejouer celles déjà enregistrées.
 2. Vérifier le compte administrateur personnel, les permissions SQL et la banque initiale. Voir [Supabase](SUPABASE_SETUP.md).
+   Pour la version avec connexion par pseudo, appliquer aussi sa migration et déployer la fonction Supabase `username-login` avant de publier le frontend. Voir [USERNAME_LOGIN.md](USERNAME_LOGIN.md).
 3. Configurer `.env.local` pour le backend `supabase`, avec l’URL et la clé publishable du projet.
 4. Exécuter depuis la racine :
 

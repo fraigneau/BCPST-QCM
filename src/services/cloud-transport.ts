@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 type CloudClient = Pick<SupabaseClient, 'rpc' | 'storage'>
-type RpcRoute = { fn: 'qcm_game' | 'qcm_content'; action: string; payload: Record<string, unknown> }
+type RpcRoute = { fn: 'qcm_game' | 'qcm_content' | 'qcm_set_username'; action: string; payload: Record<string, unknown> }
 
 export function cloudRoute(path: string, method: string, body: Record<string, unknown> = {}): RpcRoute {
   const url = new URL(path, 'https://qcm.invalid')
   const pathname = url.pathname.replace(/^\/api/, '')
   const payload = { ...Object.fromEntries(url.searchParams), ...body }
+  if (method === 'PATCH' && pathname === '/profile/username') return { fn: 'qcm_set_username', action: 'set_username', payload: { candidate: body.username } }
   const fixed: Record<string, [RpcRoute['fn'], string]> = {
     'GET /bootstrap': ['qcm_content', 'bootstrap'], 'GET /chapters': ['qcm_content', 'chapters'],
     'GET /progress': ['qcm_game', 'progress'], 'GET /leaderboard': ['qcm_game', 'leaderboard'],
@@ -121,11 +122,12 @@ export function createCloudTransport(getClient: (authorization: string) => Cloud
       const body = options.body ? JSON.parse(String(options.body)) as Record<string, unknown> : {}
       if (path === '/api/uploads' && method === 'POST') return await upload(body, context, authorization)
       const route = cloudRoute(path, method, normalizeImage(body, context) as Record<string, unknown>)
-      let call = context.client.rpc(route.fn, { action: route.action, payload: route.payload })
+      let call = context.client.rpc(route.fn, route.fn === 'qcm_set_username' ? route.payload : { action: route.action, payload: route.payload })
       if (options.signal) call = call.abortSignal(options.signal)
       const { data, error } = await call
       if (error) {
         const status = cloudStatus(error)
+        if (route.fn === 'qcm_set_username' && error.code === '23505') return json({ message: 'Ce pseudo est déjà utilisé. Choisis-en un autre.' }, 409)
         return json({ message: ['PGRST202', '42883'].includes(error.code) ? 'La base Supabase doit être mise à jour avant de jouer.' : status >= 500 ? 'Supabase est momentanément indisponible. Réessaie.' : error.message }, status)
       }
       return json(route.action === 'export' ? data : await hydrate(data, context))

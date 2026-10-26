@@ -125,3 +125,11 @@ test('les requêtes et images gardent leur identité quand une autre session dé
   assert.equal(requests.filter(item => item.path.includes('/sign/') && item.token === 'Bearer account-A').length, 1)
   assert.equal((await transport('/api/rooms', { method: 'POST' })).status, 401)
 })
+
+test('modifier le pseudo appelle uniquement la RPC personnelle sans accepter un utilisateur ou un rôle cible', async () => {
+  let argumentsReceived: unknown
+  const transport = createCloudTransport(() => ({ rpc: (name: string, args: unknown) => { argumentsReceived = { name, args }; return Promise.resolve({ data: { id: 'student', username: 'yann' }, error: null }) } } as unknown as SupabaseClient))
+  const response = await transport('/api/profile/username', { method: 'PATCH', headers: { Authorization: 'Bearer current-user' }, body: JSON.stringify({ username: 'yann', userId: 'other', role: 'admin' }) })
+  assert.equal(response.status, 200)
+  assert.deepEqual(argumentsReceived, { name: 'qcm_set_username', args: { candidate: 'yann' } })
+})

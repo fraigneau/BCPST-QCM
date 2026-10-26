@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Bootstrap, User } from '../../shared/types.ts'
+import { normalizeUsername, USERNAME_HELP, USERNAME_PATTERN } from '../../shared/username.ts'
 
 export type AuthMode = 'local' | 'supabase'
 export interface SessionState {
@@ -10,7 +11,7 @@ export interface SessionState {
   error: string | null
 }
 
-type AuthClient = Pick<SupabaseClient, 'auth'>
+type AuthClient = Pick<SupabaseClient, 'auth' | 'functions' | 'rpc'>
 export class RequestError extends Error {
   status: number
   constructor(status: number, message: string) { super(message); this.status = status }
@@ -21,7 +22,7 @@ export class SessionChangedError extends Error {
 
 export function authErrorMessage(error: { code?: string; message?: string }): string {
   const messages: Record<string, string> = {
-    invalid_credentials: 'Adresse e-mail ou mot de passe incorrect.',
+    invalid_credentials: 'Identifiant ou mot de passe incorrect.',
     email_not_confirmed: 'Confirmez votre adresse e-mail avant de vous connecter.',
     user_banned: 'Ce compte est désactivé.',
     signup_disabled: 'Les inscriptions sont temporairement fermées.',
@@ -138,36 +139,63 @@ export function createSessionService(state: SessionState, dependencies: {
     } finally { state.loading = false }
   }
 
-  async function signIn(email: string, password: string) {
+  async function signIn(identifier: string, password: string) {
     await configure()
+    const login = identifier.trim()
+    const emailLogin = login.includes('@')
+    if (!login || login.length > 254 || (!emailLogin && !USERNAME_PATTERN.test(normalizeUsername(login)))) throw new Error(authErrorMessage({ code: 'invalid_credentials' }))
     authOperation = true
     state.error = null
     clearIdentity()
+    const operationGeneration = generation
     try {
       if (state.authMode === 'supabase') {
-        const { error } = await dependencies.getClient().auth.signInWithPassword({ email: email.trim(), password })
-        if (error) throw new Error(authErrorMessage(error))
+        const client = dependencies.getClient()
+        if (emailLogin) {
+          const { error } = await client.auth.signInWithPassword({ email: login, password })
+          if (error) throw new Error(authErrorMessage(error))
+        } else {
+          const { data, error } = await client.functions.invoke('username-login', { body: { identifier: normalizeUsername(login), password }, timeout: 15000 })
+          if (operationGeneration !== generation) throw new SessionChangedError()
+          if (error) {
+            const status = error.context instanceof Response ? error.context.status : undefined
+            if (status === 401 || status === 400) throw new Error(authErrorMessage({ code: 'invalid_credentials' }))
+            if (status === 429) throw new Error(authErrorMessage({ code: 'over_request_rate_limit' }))
+            throw new Error('La connexion par pseudo est momentanément indisponible. Utilise ton adresse e-mail.')
+          }
+          if (!data || typeof data.access_token !== 'string' || typeof data.refresh_token !== 'string') throw new Error('La connexion par pseudo est momentanément indisponible. Utilise ton adresse e-mail.')
+          const { error: sessionError } = await client.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token })
+          if (sessionError) throw new Error(authErrorMessage(sessionError))
+        }
       } else {
-        await request('/auth/login', { method: 'POST', body: JSON.stringify({ email: email.trim(), password }) })
+        await request('/auth/login', { method: 'POST', body: JSON.stringify({ identifier: login, password }) })
       }
       await refreshSession()
       if (!state.user) throw new Error(state.error ?? 'Votre session est indisponible. Reconnectez-vous.')
     } finally { authOperation = false }
   }
 
-  async function signUp(input: { name: string; email: string; password: string }) {
+  async function signUp(input: { name: string; email: string; password: string; username?: string }) {
     await configure()
     if (input.name.trim().length < 2 || input.name.trim().length > 60 || input.password.length < 10 || input.password.length > 128) throw new Error('Indiquez un nom de 2 à 60 caractères et un mot de passe de 10 à 128 caractères.')
+    const username = input.username === undefined ? undefined : normalizeUsername(input.username)
+    if (username !== undefined && !USERNAME_PATTERN.test(username)) throw new Error(USERNAME_HELP)
     authOperation = true
     state.error = null
     clearIdentity()
     try {
       if (state.authMode === 'supabase') {
-        const { data, error } = await dependencies.getClient().auth.signUp({ email: input.email.trim(), password: input.password, options: { data: { display_name: input.name.trim() } } })
+        const client = dependencies.getClient()
+        if (username !== undefined) {
+          const { data: available, error: availabilityError } = await client.rpc('qcm_username_available', { candidate: username })
+          if (availabilityError) throw new Error('Le choix du pseudo est momentanément indisponible. Réessaie plus tard.')
+          if (available !== true) throw new Error('Ce pseudo est déjà utilisé. Choisis-en un autre.')
+        }
+        const { data, error } = await client.auth.signUp({ email: input.email.trim(), password: input.password, options: { data: { display_name: input.name.trim(), ...(username === undefined ? {} : { username }) } } })
         if (error) throw new Error(authErrorMessage(error))
         if (!data.session) return { requiresConfirmation: true }
       } else {
-        await request('/auth/register', { method: 'POST', body: JSON.stringify({ ...input, name: input.name.trim(), email: input.email.trim() }) })
+        await request('/auth/register', { method: 'POST', body: JSON.stringify({ ...input, name: input.name.trim(), email: input.email.trim(), ...(username === undefined ? {} : { username }) }) })
       }
       await refreshSession()
       if (!state.user) throw new Error(state.error ?? 'Votre session est indisponible. Reconnectez-vous.')
@@ -198,5 +226,14 @@ export function createSessionService(state: SessionState, dependencies: {
     if (failure) throw failure
   }
 
-  return { request, refreshSession, signIn, signUp, signOut, headers, generation: () => generation, dispose: () => { disposed = true; clearTimeout(scheduled); unsubscribe?.() } }
+  async function setUsername(value: string) {
+    const username = normalizeUsername(value)
+    if (!USERNAME_PATTERN.test(username)) throw new Error(USERNAME_HELP)
+    const user = await request<User>('/profile/username', { method: 'PATCH', body: JSON.stringify({ username }) })
+    if (!state.user || user.id !== state.user.id) throw new SessionChangedError()
+    state.user = user
+    if (state.bootstrap) state.bootstrap.user = user
+  }
+
+  return { request, refreshSession, signIn, signUp, signOut, setUsername, headers, generation: () => generation, dispose: () => { disposed = true; clearTimeout(scheduled); unsubscribe?.() } }
 }

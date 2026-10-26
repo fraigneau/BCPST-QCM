@@ -7,6 +7,8 @@ import { session, signIn, signUp } from '../services/api'
 const register = ref(false)
 const name = ref('')
 const email = ref('')
+const identifier = ref('')
+const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const busy = ref(false)
@@ -16,18 +18,23 @@ const router = useRouter()
 const route = useRoute()
 async function submit(demo?: string) {
   if (busy.value || (demo && session.authMode !== 'local')) return
+  if (register.value && !demo && !/^[a-z0-9][a-z0-9._-]{2,23}$/.test(username.value.trim().toLowerCase())) {
+    error.value = 'Choisis un pseudo de 3 à 24 caractères : lettres sans accent, chiffres, point, tiret ou _. Commence par une lettre ou un chiffre.'
+    return
+  }
   busy.value = true
   error.value = ''
   confirmation.value = ''
   try {
     if (register.value && !demo) {
-      const result = await signUp({ name: name.value.trim(), email: email.value.trim(), password: password.value })
+      username.value = username.value.trim().toLowerCase()
+      const result = await signUp({ name: name.value.trim(), email: email.value.trim(), password: password.value, username: username.value })
       if (result.requiresConfirmation || !session.user) {
         confirmation.value = email.value.trim()
         password.value = ''
         return
       }
-    } else await signIn(demo ? `${demo}@herbier.local` : email.value.trim(), demo ? 'Herbier2026!' : password.value)
+    } else await signIn(demo ? `${demo}@herbier.local` : identifier.value.trim(), demo ? 'Herbier2026!' : password.value)
     await router.push(redirectPath())
   } catch (e) { error.value = (e as Error).message }
   finally { busy.value = false }
@@ -42,6 +49,8 @@ function redirectPath() {
   } catch { return '/' }
 }
 function switchMode() {
+  if (register.value && email.value) identifier.value = email.value.trim()
+  else if (!register.value && identifier.value.includes('@')) email.value = identifier.value.trim()
   register.value = confirmation.value ? false : !register.value
   confirmation.value = ''
   error.value = ''
@@ -65,7 +74,9 @@ function switchMode() {
         <template v-else>
           <form class="stack" :aria-busy="busy" @submit.prevent="submit()">
             <label v-if="register" class="field">Ton nom<input v-model="name" class="input" name="name" autocomplete="name" minlength="2" maxlength="60" :disabled="busy" required placeholder="Camille Laurent" /></label>
-            <label class="field">Adresse e-mail<input v-model="email" class="input" name="email" type="email" autocomplete="email" autocapitalize="none" :spellcheck="false" :disabled="busy" required placeholder="vous@exemple.fr" /></label>
+            <label v-if="register" class="field">Ton pseudo<input v-model="username" class="input" name="username" type="text" autocomplete="username" autocapitalize="none" :spellcheck="false" minlength="3" maxlength="24" :disabled="busy" aria-describedby="signup-username-help" required placeholder="camille.bcpst" /><small id="signup-username-help" class="username-help">3 à 24 caractères : lettres sans accent, chiffres, point, tiret ou _. Sans espace. Commence par une lettre ou un chiffre.</small></label>
+            <label v-if="register" class="field">Adresse e-mail<input v-model="email" class="input" name="email" type="email" autocomplete="email" autocapitalize="none" :spellcheck="false" :disabled="busy" required placeholder="vous@exemple.fr" /></label>
+            <label v-else class="field">Pseudo ou adresse e-mail<input v-model="identifier" class="input" name="username" type="text" autocomplete="username" autocapitalize="none" :spellcheck="false" :disabled="busy" required placeholder="camille.bcpst ou vous@exemple.fr" /></label>
             <label class="field">Mot de passe<span class="password-field"><input v-model="password" class="input" name="password" :type="showPassword ? 'text' : 'password'" :autocomplete="register ? 'new-password' : 'current-password'" :minlength="register ? 10 : 1" :disabled="busy" required :placeholder="register ? '10 caractères minimum' : 'Votre mot de passe'" /><button type="button" class="icon-button" :disabled="busy" :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" @click="showPassword = !showPassword"><component :is="showPassword ? EyeOff : Eye" :size="18" /></button></span></label>
             <p v-if="error" class="form-error" role="alert">{{ error }}</p>
             <button class="button auth-submit" :disabled="busy">{{ busy ? register ? 'Création du compte…' : 'Connexion en cours…' : register ? 'Créer mon compte' : 'Se connecter' }}<ArrowRight :size="18" /></button>
@@ -101,5 +112,6 @@ function switchMode() {
 .confirmation-note { padding: 22px; background: #e9f2eb; border-radius: 16px; }
 .confirmation-note p { margin: 14px 0 22px; font-size: 15px; line-height: 1.7; overflow-wrap: anywhere; }
 .confirmation-note .button { width: 100%; }
+.username-help { font-size: 13px; font-weight: 400; color: var(--muted); line-height: 1.6; }
 @media (max-height: 720px) { .auth-page { padding-top: calc(20px + env(safe-area-inset-top, 0px)); } .auth-intro { padding-bottom: 24px; } }
 </style>

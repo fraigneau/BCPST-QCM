@@ -1,0 +1,4 @@
+project_id = "qcm-bcpst"
+
+[functions.username-login]
+verify_jwt = false

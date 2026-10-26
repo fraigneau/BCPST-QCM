@@ -87,6 +87,8 @@ Les données de ce parcours restent dans `data/`. Les effacer ou changer de serv
 
 ## Portée des résultats
 
+Le 26 octobre 2026, la version avec pseudos passe 82 tests Node, le build TypeScript/Vite et `pages:check`. Les tests couvrent les connexions pseudo/e-mail locales avec redémarrage, les collisions, le maintien des rôles, la délégation de la connexion cloud à Auth et les réponses de la fonction. Le point d’entrée Edge a également été contrôlé contre les types du SDK avec des déclarations minimales du runtime Deno. Ces contrôles ne constituent pas une exécution sous Deno ni une validation distante : la nouvelle suite SQL `username_auth.sql`, la migration et la fonction restent à exécuter dans Supabase.
+
 Dernière préparation Pages du 22 octobre 2026 : 64 tests Node réussis, compilation TypeScript/Vite et contrôle `pages:check` réussis. Chrome a chargé le build statique à 390 px, vérifié l’écran cloud sans comptes de démonstration et la redirection d’une route protégée, sans erreur JavaScript ni requête vers `/api`. Cet essai ne fournit pas une session personnelle Supabase et ne remplace pas la recette du domaine publié.
 
 La première phase a déjà été testée localement et la refonte mobile a été examinée avec Chrome headless à 320, 390, 430 et 1440 px. Les captures locales sont dans `.qa/mobile-artifacts/` lorsqu’elles sont conservées. Ces essais ne prouvent ni la configuration du site Pages final ni le comportement d’un clavier Android/iOS réel.

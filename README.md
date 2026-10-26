@@ -32,6 +32,8 @@ Ouvrir <http://localhost:5173>. Vite sert uniquement l’interface : le navigate
 
 ## Réviser et jouer
 
+La connexion accepte un pseudo unique ou l’adresse e-mail, avec le même mot de passe. L’inscription demande un pseudo de 3 à 24 caractères et conserve une adresse e-mail pour la confirmation et la récupération. Le pseudo est modifiable dans « Moi ». En cloud, cette fonctionnalité exige la migration et la fonction Supabase décrites dans [USERNAME_LOGIN.md](docs/USERNAME_LOGIN.md) ; publier le frontend seul ne les installe pas. La connexion e-mail existante continue de passer directement par Supabase Auth.
+
 - **Révision solo** : chapitres et difficulté au choix, sans chronomètre, 100 points par bonne réponse, correction expliquée et progression à votre rythme.
 - **Défi multijoueur** : salon privé et code, mêmes questions, 30 secondes pour répondre, 100 points et jusqu’à 50 points de rapidité, puis correction commune de 5 secondes.
 - **Progression** : erreurs à revoir, historique et classements par chapitre, y compris les élèves sans point.
