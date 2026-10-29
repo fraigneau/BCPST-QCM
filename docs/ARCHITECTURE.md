@@ -60,6 +60,14 @@ Le dépôt fournit une migration d’initialisation séparée pour les 50 questi
 
 Les questions d’essai et leurs corrections doivent être relues par un enseignant avant utilisation pédagogique officielle. Une initialisation avec le statut publié permet de tester les parcours, sans constituer une validation scientifique.
 
+## Import JSON et XML Moodle / Pronote
+
+Le convertisseur `src/services/question-import.ts` lit le fichier localement dans le navigateur avec `@xmldom/xmldom`, chargé à la sélection du fichier. Il n’exécute ni HTML ni JavaScript et ne charge aucune ressource distante. Les DTD et entités sont refusées ; taille, profondeur, nombre de questions et illustrations sont bornés. Les éléments incompatibles restent visibles dans l’aperçu et nécessitent une exclusion explicite. Aucune question à deux ou cinq propositions n’est transformée artificiellement en quatre choix.
+
+Le XML `multichoice` est converti en questions solo en brouillon. Les catégories sont associées par l’utilisateur à des chapitres existants ; aucune arborescence ni aucun chapitre n’est créé automatiquement. Le niveau choisi n’est pas déduit des notes Moodle. Les fractions positives donnent les bonnes réponses, avec contrôle des barèmes uniques ou multiples cohérents ; le barème du jeu et la perte des points partiels sont annoncés. Les corrections manquantes sont signalées et marquées « Correction à compléter après import. ».
+
+Après confirmation, les illustrations intégrées passent par le téléversement existant vers SQLite/local ou Supabase Storage, puis les questions par `/questions/import` ou la RPC correspondante. Le serveur revalide droits, chapitres, réponses, sources et images ; le navigateur ne choisit ni l’auteur ni un privilège. Les imports JSON conservent les liens et imposent la sélection d’une source présente dans le fichier avec sa variante. Les questions restent transactionnelles, les uploads d’images sont séparés : après un échec, les images déjà envoyées sont réutilisées lors du nouvel essai dans le même aperçu. Si l’utilisateur ferme l’aperçu après un échec partiel d’upload, ces fichiers peuvent rester sans question associée, comme dans l’éditeur manuel. Un résultat réseau incertain après soumission des questions bloque une nouvelle tentative du même lot jusqu’à vérification de la bibliothèque.
+
 ## Hébergement et fichiers
 
 Cloudflare Pages ne reçoit que `dist/`. Le navigateur charge les assets statiques et contacte Supabase ; il n’a besoin ni d’Express, ni de `node:sqlite`, ni du dossier `data`. Node.js 24 sert à compiler et à tester, pas à exécuter la version Pages.
