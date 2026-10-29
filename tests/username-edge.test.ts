@@ -2,10 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createAttemptLimiter, createUsernameLoginHandler, type UsernameLoginDependencies } from '../supabase/functions/username-login/handler.ts'
 
+import { resolveAllowedOrigins } from '../supabase/functions/username-login/origins.ts'
+
 function fixture() {
   const calls: { kind: string; value: string }[] = []
   const dependencies: UsernameLoginDependencies = {
-    allowedOrigins: ['https://bcpst-qcm.pages.dev'],
+    allowedOrigins: resolveAllowedOrigins(),
     corsHeaders: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type' },
     findProfile: async username => { calls.push({ kind: 'profile', value: username }); return username === 'yann' || username === 'disabled' ? { id: username, disabled: username === 'disabled' } : null },
     findEmail: async id => { calls.push({ kind: 'email', value: id }); return id === 'yann' || id === 'disabled' ? 'private@example.test' : null },
@@ -70,4 +72,25 @@ test('les pannes et limites ne produisent pas de faux jetons et ne se présenten
   assert.equal(allow('yann'), false)
   now = 60001
   assert.equal(allow('yann'), true)
+})
+
+
+test('le domaine de production accepte le préflight et une connexion par pseudo, sans ouvrir les autres domaines', async () => {
+  const f = fixture()
+  const headers = { Origin: 'https://qcm.fraigneau.fr', 'Content-Type': 'application/json' }
+  const preflight = await f.handle(new Request('https://example.supabase.co/functions/v1/username-login', { method: 'OPTIONS', headers }))
+  assert.equal(preflight.status, 204)
+  assert.equal(preflight.headers.get('Access-Control-Allow-Origin'), headers.Origin)
+  assert.deepEqual(f.calls, [])
+  const response = await f.handle(new Request(request('yann', 'correct'), { headers }))
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), headers.Origin)
+  const foreign = await f.handle(new Request(request('yann'), { headers: { ...headers, Origin: 'https://qcm.fraigneau.fr.evil.test' } }))
+  assert.equal(foreign.status, 403)
+  assert.equal(foreign.headers.get('Access-Control-Allow-Origin'), null)
+})
+
+test('une liste explicite des origines remplace les valeurs par défaut', () => {
+  assert.deepEqual(resolveAllowedOrigins(' https://preview.example , ,http://localhost:5173 '), ['https://preview.example', 'http://localhost:5173'])
+  assert.deepEqual(resolveAllowedOrigins(''), [])
 })

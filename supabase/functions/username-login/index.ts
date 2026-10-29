@@ -1,9 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.118.0/cors'
+import { resolveAllowedOrigins } from './origins.ts'
 import { createAttemptLimiter, createUsernameLoginHandler } from './handler.ts'
 
-const defaultOrigins = ['https://bcpst-qcm.pages.dev', 'http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173']
-const allowedOrigins = Deno.env.get('ALLOWED_ORIGINS')?.split(',').map(origin => origin.trim()).filter(Boolean) ?? defaultOrigins
+const allowedOrigins = resolveAllowedOrigins(Deno.env.get('ALLOWED_ORIGINS'))
 const attemptAllowed = createAttemptLimiter()
 
 Deno.serve(async request => {
