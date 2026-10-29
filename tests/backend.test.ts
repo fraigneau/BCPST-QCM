@@ -227,12 +227,15 @@ test('API locale : sessions, permissions, validation, parties et persistance', a
       assert.deepEqual(state.result!.selected, [])
       const late = await student.request(`/games/${game.id}/answer`, 'POST', { questionId: game.question!.id, selected: [0] })
       assert.equal(late.status, 409)
+      assert.equal((await admin.request(`/questions/${game.question!.id}`, 'DELETE')).status, 200)
       const progress = (await student.request('/progress')).body
-      assert.ok(progress.mistakes.some((m: { questionId: string }) => m.questionId === game.question!.id))
+      const sourceId = runtime.games.read(game.id).questions[0]!.sourceQuestionId
+      assert.ok(sourceId)
+      assert.ok(progress.mistakes.some((m: { questionId: string }) => m.questionId === sourceId))
       const retry = (await student.request('/games/solo', 'POST', { chapterIds: [chapterId], difficulty: 'all', count: 5, mistakesOnly: true })).body as GameState
       assert.equal(retry.totalQuestions, 1)
       assert.equal(retry.deadline, null)
-      assert.equal(retry.question!.id, game.question!.id)
+      assert.equal(retry.question!.id, sourceId)
       const q = (await admin.request('/questions')).body.find((q: Question) => q.id === retry.question!.id) as Question
       assert.equal((await student.request(`/games/${retry.id}/answer`, 'POST', { questionId: q.id, selected: q.correctAnswers })).status, 200)
       assert.equal((await student.request('/progress')).body.mistakes.length, 0)

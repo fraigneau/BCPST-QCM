@@ -1,6 +1,6 @@
 import type { Question } from '../../shared/types.ts'
 
-export interface LibraryFilters { chapterId?: string; status?: string; difficulty?: string; search?: string }
+export interface LibraryFilters { usage?: string; chapterId?: string; status?: string; difficulty?: string; search?: string }
 
 function searchable(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr').trim()
@@ -9,7 +9,8 @@ function searchable(value: string): string {
 export function filterLibraryQuestions(questions: Question[], filters: LibraryFilters): Question[] {
   const search = searchable(filters.search ?? '')
   return questions.filter(question =>
-    (!filters.chapterId || question.chapterId === filters.chapterId)
+    (!filters.usage || (question.usage ?? 'solo') === filters.usage)
+    && (!filters.chapterId || question.chapterId === filters.chapterId)
     && (!filters.status || question.status === filters.status)
     && (!filters.difficulty || question.difficulty === filters.difficulty)
     && (!search || searchable(`${question.prompt} ${question.explanation}`).includes(search)),

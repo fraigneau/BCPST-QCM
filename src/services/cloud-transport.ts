@@ -9,6 +9,7 @@ export function cloudRoute(path: string, method: string, body: Record<string, un
   const payload = { ...Object.fromEntries(url.searchParams), ...body }
   if (method === 'PATCH' && pathname === '/profile/username') return { fn: 'qcm_set_username', action: 'set_username', payload: { candidate: body.username } }
   const fixed: Record<string, [RpcRoute['fn'], string]> = {
+    'POST /chapters': ['qcm_content', 'create_chapter'],
     'GET /bootstrap': ['qcm_content', 'bootstrap'], 'GET /chapters': ['qcm_content', 'chapters'],
     'GET /progress': ['qcm_game', 'progress'], 'GET /leaderboard': ['qcm_game', 'leaderboard'],
     'GET /questions': ['qcm_content', 'questions'], 'GET /questions/export': ['qcm_content', 'export'],
@@ -20,6 +21,8 @@ export function cloudRoute(path: string, method: string, body: Record<string, un
   if (match) return { fn: match[0], action: match[1], payload }
   const question = /^\/questions\/([^/]+)(?:\/(review))?$/.exec(pathname)
   if (question && ((method === 'PUT' && !question[2]) || (method === 'DELETE' && !question[2]) || (method === 'POST' && question[2]))) return { fn: 'qcm_content', action: question[2] ? 'review' : method === 'PUT' ? 'update_question' : 'delete_question', payload: { ...payload, questionId: decodeURIComponent(question[1]!) } }
+  const chapter = /^\/chapters\/([^/]+)$/.exec(pathname)
+  if (chapter && method === 'PATCH') return { fn: 'qcm_content', action: 'update_chapter', payload: { ...payload, chapterId: decodeURIComponent(chapter[1]!) } }
   const user = /^\/users\/([^/]+)$/.exec(pathname)
   if (user && method === 'PATCH') return { fn: 'qcm_content', action: 'update_user', payload: { ...payload, userId: decodeURIComponent(user[1]!) } }
   const game = /^\/games\/([^/]+)(?:\/(start|answer|next|leave))?$/.exec(pathname)

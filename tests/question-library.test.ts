@@ -19,3 +19,11 @@ test('la bibliothèque recherche les énoncés et corrections avec ou sans accen
   assert.deepEqual(filterLibraryQuestions(questions, { search: 'inexistant' }), [])
   assert.deepEqual(questions, before)
 })
+
+
+test('le filtre sépare les QCM solo historiques des variantes QCS de défi', () => {
+  const library: Question[] = [base, { ...base, id: 'variant', usage: 'challenge', sourceQuestionId: base.id }]
+  assert.deepEqual(filterLibraryQuestions(library, { usage: 'solo' }).map(q => q.id), [base.id])
+  assert.deepEqual(filterLibraryQuestions(library, { usage: 'challenge' }).map(q => q.id), ['variant'])
+  assert.equal(filterLibraryQuestions(library, {}).length, 2)
+})

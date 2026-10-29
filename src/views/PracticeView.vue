@@ -49,7 +49,7 @@ onMounted(async () => {
 
 <template>
   <div class="mobile-practice">
-    <header class="practice-heading"><h1>Révision solo</h1><p>Choisissez votre séance. Prenez votre temps.</p><span class="practice-untimed"><Leaf :size="16" />Sans chrono</span></header>
+    <header class="practice-heading"><h1>Révision solo</h1><p>Des QCM pour comprendre le chapitre. Prenez votre temps.</p><span class="practice-untimed"><Leaf :size="16" />Sans chrono</span></header>
 
     <RouterLink v-if="resumable" class="practice-resume" :to="`/game/${resumable.id}`"><RotateCcw :size="22" /><span><strong>Reprendre ma révision</strong><small>Question {{ resumable.questionIndex + 1 }} sur {{ resumable.totalQuestions }}</small></span><ArrowRight :size="20" /></RouterLink>
 

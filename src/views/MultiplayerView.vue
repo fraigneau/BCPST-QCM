@@ -13,6 +13,7 @@ const count = ref(5)
 const busy = ref('')
 const error = ref('')
 const chapters = computed(() => session.bootstrap?.chapters || [])
+const available = computed(() => chapters.value.filter(chapter => !selected.value.length || selected.value.includes(chapter.id)).reduce((total, chapter) => total + (session.bootstrap?.challengeCounts?.[chapter.id] ?? 0), 0))
 const configuration = computed(() => `${count.value} questions · ${selected.value.length ? `${selected.value.length} chapitre${selected.value.length > 1 ? 's' : ''}` : 'Tous les chapitres'}`)
 function normalizeCode(event: Event) {
   const input = event.target as HTMLInputElement
@@ -35,7 +36,7 @@ async function enter(action: 'create' | 'join') {
 
 <template>
   <div class="mobile-multiplayer">
-    <header class="screen-heading"><h1>Défis</h1><p>Retrouvez votre groupe avec un code.</p></header>
+    <header class="screen-heading"><h1>Défis</h1><p>Des QCS rapides : une seule bonne réponse.</p></header>
     <section class="join-card" aria-labelledby="join-heading">
       <h2 id="join-heading">Rejoindre un salon</h2>
       <form @submit.prevent="enter('join')">
@@ -53,11 +54,12 @@ async function enter(action: 'create' | 'join') {
         <details class="room-settings">
           <summary><span>Paramètres<small>{{ configuration }}</small></span><ChevronDown :size="19" /></summary>
           <div class="settings-content">
-            <fieldset><legend>Chapitres</legend><div class="chapter-choices"><button type="button" :class="{ chosen: !selected.length }" :aria-pressed="!selected.length" @click="selected = []">Tous<Check v-if="!selected.length" :size="16" /></button><button v-for="chapter in chapters" :key="chapter.id" type="button" :class="{ chosen: selected.includes(chapter.id) }" :aria-pressed="selected.includes(chapter.id)" @click="toggle(chapter.id)">{{ chapter.shortName }}<Check v-if="selected.includes(chapter.id)" :size="16" /></button></div></fieldset>
+            <fieldset><legend>Chapitres</legend><div class="chapter-choices"><button type="button" :class="{ chosen: !selected.length }" :aria-pressed="!selected.length" @click="selected = []">Tous<Check v-if="!selected.length" :size="16" /></button><button v-for="chapter in chapters" :key="chapter.id" type="button" :class="{ chosen: selected.includes(chapter.id) }" :aria-pressed="selected.includes(chapter.id)" @click="toggle(chapter.id)">{{ chapter.shortName }} · {{ session.bootstrap?.challengeCounts?.[chapter.id] ?? 0 }} QCS<Check v-if="selected.includes(chapter.id)" :size="16" /></button></div></fieldset>
             <div class="setting-fields"><label>Difficulté<select v-model="difficulty"><option value="all">Tous les niveaux</option><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label><label>Questions<select v-model="count"><option :value="5">5 questions</option><option :value="10">10 questions</option><option :value="15">15 questions</option></select></label></div>
           </div>
         </details>
-        <button class="create-action" :disabled="!!busy"><Plus :size="20" />{{ busy === 'create' ? 'Création…' : 'Créer mon salon' }}</button>
+        <p v-if="!available" class="field-help" role="status">Aucun QCS de défi publié dans ces chapitres. Un administrateur doit valider des variantes rapides.</p>
+        <button class="create-action" :disabled="!!busy || !available"><Plus :size="20" />{{ busy === 'create' ? 'Création…' : 'Créer mon salon' }}</button>
       </form>
     </section>
     <details class="connection-help"><summary>Comment jouer sur plusieurs téléphones ?<ChevronDown :size="18" /></summary><p>{{ backendMode === 'supabase' ? 'Chaque joueur se connecte avec son compte sur son téléphone. Partagez le code du salon : une connexion Internet suffit.' : 'Chaque joueur utilise un compte différent. En mode local, ouvrez l’adresse réseau de cet ordinateur sur chaque téléphone, avec le même Wi-Fi. L’ordinateur doit rester allumé pendant la partie.' }}</p></details>

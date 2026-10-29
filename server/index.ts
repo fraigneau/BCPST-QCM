@@ -6,7 +6,7 @@ import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { networkInterfaces } from 'node:os'
 import { z } from 'zod'
-import { allocateLocalUsername, openDatabase, publicUser, hashPassword, verifyPassword, readChapters, readQuestions, writeQuestion, readVisibleAnswers } from './database.ts'
+import { allocateLocalUsername, openDatabase, publicUser, hashPassword, verifyPassword, readChapters, readQuestions, writeQuestion, readVisibleAnswers, playedQuestionSources } from './database.ts'
 import { ApiError, Games, type StoredGame } from './games.ts'
 import type { Bootstrap, LeaderboardRow, Progress, Question, User } from '../shared/types.ts'
 import { createSupabaseTokenVerifier, resolveAuthConfiguration, type AuthMode, type SupabaseAuthConfig, type SupabaseTokenVerifier } from './supabase-auth.ts'
@@ -18,12 +18,13 @@ interface AuthIdentity { user: User; sessionToken: string; expiresAt: number; be
 interface GameStream { userId: string; role: User['role']; gameId: string; sessionToken: string; expiresAt: number; bearerToken: string | null; lastValidatedAt: number; checking: boolean; res: Response }
 
 const questionSchema = z.object({
+  usage: z.enum(['solo', 'challenge']).default('solo'), sourceQuestionId: z.string().max(100).nullable().default(null),
   chapterId: z.string().min(1).max(100), difficulty: z.enum(['easy', 'medium', 'hard']),
   prompt: z.string().trim().min(10).max(5000), options: z.array(z.string().trim().min(1).max(1000)).length(4),
   correctAnswers: z.array(z.number().int().min(0).max(3)).min(1).max(4).refine(a => new Set(a).size === a.length),
   explanation: z.string().trim().min(10).max(10000), image: z.string().max(250).nullable(), status: z.enum(['draft', 'pending']),
 })
-const gameSchema = z.object({ chapterIds: z.array(z.string()).max(5).default([]), difficulty: z.enum(['all', 'easy', 'medium', 'hard']).default('all'), count: z.number().int().min(1).max(30).default(10), mistakesOnly: z.boolean().optional() })
+const gameSchema = z.object({ chapterIds: z.array(z.string()).max(100).default([]), difficulty: z.enum(['all', 'easy', 'medium', 'hard']).default('all'), count: z.number().int().min(1).max(30).default(10), mistakesOnly: z.boolean().optional() })
 const tokenHash = (value: string) => createHash('sha256').update(value).digest('hex')
 const parisDay = (date: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 
@@ -209,12 +210,15 @@ export function createApp(options: AppOptions = {}) {
     const correct = rows.reduce((n, r) => n + Number(r.correct), 0)
     const finished = db.prepare("SELECT body FROM games WHERE status='finished' ORDER BY updated_at DESC").all().map(r => JSON.parse(String(r.body)) as StoredGame).filter(g => g.players.some(p => p.id === userId))
     const days = new Map<string, number>()
+    const playedSources = playedQuestionSources(db)
+    const library = new Map(readQuestions(db).map(q => [q.id, q]))
     const latest = new Map<string, { row: (typeof rows)[number]; count: number }>()
     for (const row of rows) {
       const day = parisDay(new Date(String(row.created_at)))
       days.set(day, (days.get(day) ?? 0) + 1)
-      const prior = latest.get(String(row.question_id))
-      latest.set(String(row.question_id), { row, count: (prior?.count ?? 0) + (Number(row.correct) === 0 ? 1 : 0) })
+      const questionId = playedSources.get(`${row.game_id}:${row.question_id}`) ?? String(row.question_id)
+      const prior = latest.get(questionId)
+      latest.set(questionId, { row, count: (prior?.count ?? 0) + (Number(row.correct) === 0 ? 1 : 0) })
     }
     let streak = 0
     const date = new Date(`${parisDay(new Date())}T12:00:00Z`)
@@ -231,7 +235,7 @@ export function createApp(options: AppOptions = {}) {
         const answers = rows.filter(r => r.game_id === g.id)
         return { id: g.id, mode: g.mode, score: answers.reduce((n, r) => n + Number(r.points), 0), total: g.questions.length, correct: answers.reduce((n, r) => n + Number(r.correct), 0), createdAt: g.createdAt }
       }),
-      mistakes: [...latest].filter(([, data]) => Number(data.row.correct) === 0).map(([questionId, data]) => ({ questionId, prompt: String(data.row.prompt), chapterId: String(data.row.chapter_id), count: data.count })),
+      mistakes: [...latest].filter(([, data]) => Number(data.row.correct) === 0).map(([questionId, data]) => ({ questionId, prompt: library.get(questionId)?.prompt ?? String(data.row.prompt), chapterId: library.get(questionId)?.chapterId ?? String(data.row.chapter_id), count: data.count })),
       daily: Array.from({ length: 14 }, (_, i) => { const d = new Date(`${parisDay(new Date())}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 13 + i); const day = d.toISOString().slice(0, 10); return { date: day, answered: days.get(day) ?? 0 } }),
     }
   }
@@ -239,10 +243,25 @@ export function createApp(options: AppOptions = {}) {
   api.get('/bootstrap', (_req, res) => {
     const chapters = readChapters(db)
     const published = readQuestions(db).filter(q => q.status === 'published')
-    const result: Bootstrap = { user: userOf(res), chapters, counts: Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id).length])), progress: progress(userOf(res).id) }
+    const result: Bootstrap = { user: userOf(res), chapters, counts: Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id && (q.usage ?? 'solo') === 'solo').length])), challengeCounts: Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id && q.usage === 'challenge').length])), progress: progress(userOf(res).id) }
     res.json(result)
   })
   api.get('/chapters', (_req, res) => res.json(readChapters(db)))
+  const chapterSchema = z.object({ name: z.string().trim().min(2).max(60), description: z.string().trim().max(1000).default('') })
+  api.post('/chapters', roles('admin'), (req, res) => {
+    const input = parse(chapterSchema, req.body)
+    const chapter = { ...input, id: randomUUID(), shortName: input.name, color: '#648c5f', icon: 'Leaf' }
+    db.prepare('INSERT INTO chapters(id,body) VALUES (?,?)').run(chapter.id, JSON.stringify(chapter))
+    res.status(201).json(chapter)
+  })
+  api.patch('/chapters/:id', roles('admin'), (req, res) => {
+    const input = parse(chapterSchema, req.body)
+    const previous = readChapters(db).find(c => c.id === req.params.id)
+    if (!previous) throw new ApiError(404, 'Chapitre introuvable.')
+    const chapter = { ...previous, ...input, shortName: input.name }
+    db.prepare('UPDATE chapters SET body=? WHERE id=?').run(JSON.stringify(chapter), chapter.id)
+    res.json(chapter)
+  })
   api.get('/progress', (_req, res) => res.json(progress(userOf(res).id)))
   api.get('/leaderboard', (req, res) => {
     const chapterId = req.query.chapterId ? String(req.query.chapterId) : null
@@ -265,11 +284,17 @@ export function createApp(options: AppOptions = {}) {
     if (user.role !== 'admin' && (q.authorId !== user.id || q.status === 'published')) throw new ApiError(403, 'Vous pouvez uniquement modifier vos questions non publiées.')
     return q
   }
-  function validatedQuestion(input: unknown) {
+  function validatedQuestion(input: unknown, actor: User, previous?: Question) {
     const q = parse(questionSchema, input)
     if (!readChapters(db).some(c => c.id === q.chapterId)) throw new ApiError(400, 'Chapitre inconnu.')
     if (new Set(q.options.map(o => o.toLowerCase())).size !== 4) throw new ApiError(400, 'Les quatre propositions doivent être différentes.')
     if (q.image && !/^\/uploads\/[a-f0-9-]+\.(png|jpg|gif|webp)$/.test(q.image) && !['/illustrations/cell.svg', '/illustrations/leaf.svg', '/illustrations/subduction.svg'].includes(q.image)) throw new ApiError(400, 'Importez l’image avant de l’associer à la question.')
+    if (q.usage === 'challenge') {
+      if (q.correctAnswers.length !== 1) throw new ApiError(400, 'Un QCS de défi doit avoir une seule bonne réponse.')
+      const source = readQuestions(db).find(item => item.id === q.sourceQuestionId)
+      if (!source || source.id === previous?.id || (source.usage ?? 'solo') !== 'solo' || source.chapterId !== q.chapterId || (actor.role !== 'admin' && source.authorId !== actor.id)) throw new ApiError(400, 'Choisissez une question solo accessible du même chapitre.')
+    } else if (q.sourceQuestionId) throw new ApiError(400, 'Une question solo ne peut pas être une variante.')
+    if (previous && readQuestions(db).some(item => item.sourceQuestionId === previous.id && (q.usage !== 'solo' || item.chapterId !== q.chapterId))) throw new ApiError(400, 'Déplacez d’abord les variantes liées à cette question.')
     return q
   }
   api.get('/questions/export', roles('admin', 'contributor'), (_req, res) => {
@@ -277,25 +302,31 @@ export function createApp(options: AppOptions = {}) {
   })
   api.post('/questions/import', roles('admin', 'contributor'), (req, res) => {
     const body = parse(z.object({ questions: z.array(z.unknown()).min(1).max(500) }), req.body)
-    const inputs = body.questions.map(input => {
-      if (!input || typeof input !== 'object') throw new ApiError(400, 'Question importée invalide.')
-      const value = input as Record<string, unknown>
-      return validatedQuestion({ ...value, status: value.status === 'published' ? 'pending' : value.status === 'rejected' ? 'draft' : value.status })
+    const entries = body.questions.map(input => {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ApiError(400, 'Question importée invalide.')
+      return input as Record<string, unknown>
     })
+    const mapping = new Map<string, string>()
     const now = new Date().toISOString()
     db.exec('BEGIN')
     try {
-      for (const q of inputs) writeQuestion(db, { ...q, id: randomUUID(), authorId: userOf(res).id, createdAt: now, updatedAt: now })
+      for (const value of [...entries.filter(q => q.usage !== 'challenge'), ...entries.filter(q => q.usage === 'challenge')]) {
+        if (typeof value.id === 'string' && mapping.has(value.id)) throw new ApiError(400, 'Identifiant dupliqué dans le fichier.')
+        const q = validatedQuestion({ ...value, sourceQuestionId: typeof value.sourceQuestionId === 'string' ? mapping.get(value.sourceQuestionId) ?? value.sourceQuestionId : null, status: value.status === 'published' ? 'pending' : value.status === 'rejected' ? 'draft' : value.status ?? 'draft' }, userOf(res))
+        const id = randomUUID()
+        writeQuestion(db, { ...q, id, authorId: userOf(res).id, createdAt: now, updatedAt: now })
+        if (typeof value.id === 'string') mapping.set(value.id, id)
+      }
       db.exec('COMMIT')
     } catch (error) { db.exec('ROLLBACK'); throw error }
-    res.status(201).json({ imported: inputs.length })
+    res.status(201).json({ imported: entries.length })
   })
   api.get('/questions', roles('admin', 'contributor'), (req, res) => {
     const search = String(req.query.search ?? '').toLocaleLowerCase('fr')
     res.json(readQuestions(db).filter(q => (userOf(res).role === 'admin' || q.authorId === userOf(res).id) && (!req.query.status || q.status === req.query.status) && (!req.query.chapterId || q.chapterId === req.query.chapterId) && (!search || `${q.prompt} ${q.explanation}`.toLocaleLowerCase('fr').includes(search))))
   })
   api.post('/questions', roles('admin', 'contributor'), (req, res) => {
-    const input = validatedQuestion(req.body)
+    const input = validatedQuestion(req.body, userOf(res))
     const now = new Date().toISOString()
     const q: Question = { ...input, id: randomUUID(), authorId: userOf(res).id, createdAt: now, updatedAt: now }
     writeQuestion(db, q)
@@ -303,12 +334,13 @@ export function createApp(options: AppOptions = {}) {
   })
   api.put('/questions/:id', roles('admin', 'contributor'), (req, res) => {
     const old = editable(String(req.params.id), userOf(res))
-    const q: Question = { ...old, ...validatedQuestion(req.body), reviewNote: undefined, updatedAt: new Date().toISOString() }
+    const q: Question = { ...old, ...validatedQuestion(req.body, userOf(res), old), reviewNote: undefined, updatedAt: new Date().toISOString() }
     writeQuestion(db, q)
     res.json(q)
   })
   api.delete('/questions/:id', roles('admin', 'contributor'), (req, res) => {
     const q = editable(String(req.params.id), userOf(res))
+    if (readQuestions(db).some(item => item.sourceQuestionId === q.id)) throw new ApiError(400, 'Supprimez ou rattachez d’abord les variantes de cette question.')
     db.prepare('DELETE FROM questions WHERE id=?').run(q.id)
     res.json({})
   })

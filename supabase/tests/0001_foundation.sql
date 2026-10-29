@@ -109,8 +109,8 @@ begin
     raise exception 'FAIL: current profile identity or role';
   end if;
   if profile ->> 'email' <> 'student-' || (select id::text from foundation_fixture where label = 'student') || '@foundation.invalid'
-    or (select count(*) from jsonb_object_keys(profile)) <> 5
-    or not profile ?& array['id','name','email','role','createdAt'] then
+    or (select count(*) from jsonb_object_keys(profile)) <> 6
+    or not profile ?& array['id','name','username','email','role','createdAt'] then
     raise exception 'FAIL: current profile payload or email';
   end if;
   if (select count(*) from public.submissions) <> 0 then raise exception 'FAIL: current multi answer leaked before correction'; end if;

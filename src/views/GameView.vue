@@ -55,6 +55,7 @@ async function load() {
 }
 function toggle(index: number) {
   if (answered.value || busy.value || (game.value?.mode === 'multi' && remaining.value <= 0)) return
+  if (game.value?.mode === 'multi' && game.value.question?.usage === 'challenge') { selected.value = [index]; return }
   selected.value = selected.value.includes(index) ? selected.value.filter(value => value !== index) : [...selected.value, index]
 }
 async function action(name: 'answer' | 'next' | 'start') {

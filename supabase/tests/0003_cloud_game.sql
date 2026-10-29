@@ -1,7 +1,7 @@
 begin;
 
 create temporary table cloud_game_fixture(label text primary key,id uuid not null default gen_random_uuid());
-insert into cloud_game_fixture(label) values('host'),('guest'),('question_a'),('question_b');
+insert into cloud_game_fixture(label) values('host'),('guest'),('question_a'),('question_b'),('challenge_a'),('challenge_b');
 create temporary table cloud_game_state(label text primary key,body jsonb not null);
 grant select on cloud_game_fixture to authenticated,anon;
 grant select,insert,update on cloud_game_state to authenticated;
@@ -20,6 +20,13 @@ from cloud_game_fixture q cross join cloud_game_fixture h where q.label in ('que
 insert into private.question_keys(question_id,correct_answers,explanation)
 select id,case when label = 'question_a' then array[0,2]::smallint[] else array[1]::smallint[] end,'Explication pédagogique initiale pour la correction.'
 from cloud_game_fixture where label in ('question_a','question_b');
+
+insert into public.questions(id,chapter_id,author_id,difficulty,prompt,options,status,usage,source_question_id)
+select variant.id,source.chapter_id,source.author_id,source.difficulty,'Variante rapide ' || variant.label || ' ?',source.options,'published','challenge',source.id
+from cloud_game_fixture variant join cloud_game_fixture original on original.label = replace(variant.label,'challenge_','question_')
+join public.questions source on source.id = original.id where variant.label in ('challenge_a','challenge_b');
+insert into private.question_keys(question_id,correct_answers,explanation)
+select id,array[1]::smallint[],'Correction de la variante rapide du chapitre.' from cloud_game_fixture where label in ('challenge_a','challenge_b');
 
 do $$
 begin
@@ -130,7 +137,7 @@ begin
   state := public.qcm_game('start',jsonb_build_object('gameId',state->>'id'));
   if state->'deadline' = 'null'::jsonb or state->>'status' <> 'playing' then raise exception 'FAIL: timed multiplayer start'; end if;
   begin perform public.qcm_game('answer',jsonb_build_object('gameId',state->>'id','questionId',state->'question'->>'id','selected','[0,0]'::jsonb)); raise exception 'FAIL: duplicate selection accepted'; exception when invalid_parameter_value then null; end;
-  selection := case when (state->'question'->>'id')::uuid = (select id from cloud_game_fixture where label = 'question_a') then '[0,2]'::jsonb else '[1]'::jsonb end;
+  selection := '[1]'::jsonb;
   state := public.qcm_game('answer',jsonb_build_object('gameId',state->>'id','questionId',state->'question'->>'id','selected',selection));
   update cloud_game_state set body = state where label = 'room';
   if state->'result' <> 'null'::jsonb or state->'results' <> '[]'::jsonb then raise exception 'FAIL: multiplayer correction leak'; end if;
@@ -151,7 +158,7 @@ declare
 begin
   state := public.qcm_game('join_room',jsonb_build_object('code',state->>'code'));
   if state->'result' <> 'null'::jsonb then raise exception 'FAIL: peer result leakage'; end if;
-  selection := case when (state->'question'->>'id')::uuid = (select id from cloud_game_fixture where label = 'question_a') then '[0,2]'::jsonb else '[1]'::jsonb end;
+  selection := '[1]'::jsonb;
   state := public.qcm_game('answer',jsonb_build_object('gameId',state->>'id','questionId',state->'question'->>'id','selected',selection));
   if state->>'phase' <> 'correction' or (state->'result'->>'points')::integer not between 100 and 150 or not(state->'result'->>'correct')::boolean then raise exception 'FAIL: shared correction or rapid scoring'; end if;
 end;

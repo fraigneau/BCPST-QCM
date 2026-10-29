@@ -7,24 +7,25 @@ const props = defineProps<{ chapters: Chapter[]; questions: Question[] }>()
 const emit = defineEmits<{ open: [chapterId: string] }>()
 
 const folders = computed(() => {
-  const counts = new Map<string, { total: number; published: number; pending: number }>()
+  const counts = new Map<string, { total: number; published: number; pending: number; solo: number; challenge: number }>()
   for (const question of props.questions) {
-    const count = counts.get(question.chapterId) || { total: 0, published: 0, pending: 0 }
+    const count = counts.get(question.chapterId) || { total: 0, published: 0, pending: 0, solo: 0, challenge: 0 }
     count.total++
+    if (question.usage === 'challenge') count.challenge++; else count.solo++
     if (question.status === 'published') count.published++
     if (question.status === 'pending') count.pending++
     counts.set(question.chapterId, count)
   }
-  return props.chapters.map(chapter => ({ chapter, ...(counts.get(chapter.id) || { total: 0, published: 0, pending: 0 }) }))
+  return props.chapters.map(chapter => ({ chapter, ...(counts.get(chapter.id) || { total: 0, published: 0, pending: 0, solo: 0, challenge: 0 }) }))
 })
 
 function folderLabel(folder: typeof folders.value[number]) {
-  return `Ouvrir le dossier ${folder.chapter.name}, ${folder.total} question${folder.total > 1 ? 's' : ''}, ${folder.published} publiée${folder.published > 1 ? 's' : ''}, ${folder.pending} à valider`
+  return `Ouvrir le chapitre ${folder.chapter.name}, ${folder.total} question${folder.total > 1 ? 's' : ''}, ${folder.published} publiée${folder.published > 1 ? 's' : ''}, ${folder.pending} à valider`
 }
 </script>
 
 <template>
-  <ul class="question-folders" aria-label="Dossiers de questions par chapitre">
+  <ul class="question-folders" aria-label="Chapitres de questions">
     <li v-for="folder in folders" :key="folder.chapter.id">
       <button type="button" class="folder-row" :aria-label="folderLabel(folder)" @click="emit('open', folder.chapter.id)">
         <span class="folder-symbol" aria-hidden="true">
@@ -36,6 +37,7 @@ function folderLabel(folder: typeof folders.value[number]) {
         <span class="folder-copy">
           <strong>{{ folder.chapter.shortName || folder.chapter.name }}</strong>
           <span class="folder-total">{{ folder.total }} question{{ folder.total > 1 ? 's' : '' }}</span>
+          <span class="folder-status">{{ folder.solo }} QCM solo · {{ folder.challenge }} QCS défi</span>
           <span class="folder-status">{{ folder.published }} publiée{{ folder.published > 1 ? 's' : '' }}<span aria-hidden="true"> · </span>{{ folder.pending }} à valider</span>
         </span>
         <ArrowRight class="folder-arrow" :size="20" />

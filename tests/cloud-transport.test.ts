@@ -18,6 +18,8 @@ test('les commandes conservent leurs paramètres sans accepter un score ou un r�
   assert.deepEqual(cloudRoute('/api/games/partie/answer', 'POST', { questionId: 'question', selected: [1] }), { fn: 'qcm_game', action: 'answer', payload: { gameId: 'partie', questionId: 'question', selected: [1] } })
   assert.deepEqual(cloudRoute('/api/users/élève', 'PATCH', { role: 'contributor' }), { fn: 'qcm_content', action: 'update_user', payload: { role: 'contributor', userId: 'élève' } })
   assert.equal(cloudRoute('/api/leaderboard?chapterId=geologie', 'GET').payload.chapterId, 'geologie')
+  assert.deepEqual(cloudRoute('/api/chapters/new-chapter', 'PATCH', { name: 'Chapitre 2' }), { fn: 'qcm_content', action: 'update_chapter', payload: { name: 'Chapitre 2', chapterId: 'new-chapter' } })
+  assert.equal(cloudRoute('/api/chapters', 'POST', { name: 'Chapitre 1' }).action, 'create_chapter')
   assert.equal(cloudRoute('/api/questions/import', 'POST', { questions: [] }).action, 'import')
   assert.throws(() => cloudRoute('/api/private/question_keys', 'GET'), /disponible/)
   assert.equal(cloudStatus({ code: '42501' }), 403)
