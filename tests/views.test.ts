@@ -52,7 +52,7 @@ async function render(name: string, role: Role | null, url = '/', authMode: Auth
 test('la connexion se rend sans session et propose les trois profils de démonstration', async () => {
   const html = await render('Auth', null, '/connexion')
   assert.match(html, /type="text"/)
-  assert.match(html, /Pseudo ou adresse e-mail/)
+  assert.match(html, /E-mail ou nom d’utilisateur/)
   assert.match(html, /type="password"/)
   assert.match(html, /Contributeur/)
   assert.match(html, /Élève/)
