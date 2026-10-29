@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Check, ChevronDown, Plus, Users } from '../components/icons'
-import { chapterLabel, orderedChapters, selectedChapterIds, chapterCount } from '../../shared/curriculum'
+import { ArrowRight, ChevronDown, Plus, Users } from '../components/icons'
+import { selectedChapterIds } from '../../shared/curriculum'
 import type { SchoolYearFilter, Difficulty, GameState } from '../../shared/types'
+import ChapterPicker from '../components/ChapterPicker.vue'
 import { backendMode, post, session } from '../services/api'
 
 const router = useRouter()
@@ -15,7 +16,6 @@ const count = ref(5)
 const busy = ref('')
 const error = ref('')
 const chapters = computed(() => session.bootstrap?.chapters || [])
-const chapterChoices = computed(() => orderedChapters(chapters.value))
 const yearCounts = computed(() => schoolYear.value === 'all' ? (session.bootstrap?.challengeCounts ?? {}) : (session.bootstrap?.challengeCountsByYear?.[schoolYear.value] ?? {}))
 const available = computed(() => selectedChapterIds(chapters.value, selected.value).reduce((total, id) => total + (yearCounts.value[id] ?? 0), 0))
 const configuration = computed(() => `${count.value} questions · ${selected.value.length ? `${selected.value.length} chapitre${selected.value.length > 1 ? 's' : ''}` : 'Tous les chapitres'}`)
@@ -24,7 +24,6 @@ function normalizeCode(event: Event) {
   code.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
   input.value = code.value
 }
-function toggle(id: string) { selected.value = selected.value.includes(id) ? selected.value.filter(chapter => chapter !== id) : [...selected.value, id] }
 async function enter(action: 'create' | 'join') {
   if (busy.value || (action === 'join' && code.value.length !== 6)) return
   busy.value = action
@@ -58,7 +57,7 @@ async function enter(action: 'create' | 'join') {
         <details class="room-settings">
           <summary><span>Paramètres<small>{{ configuration }}</small></span><ChevronDown :size="19" /></summary>
           <div class="settings-content">
-            <label>Année BCPST<select v-model="schoolYear" class="select" aria-label="Année BCPST"><option value="all">Toutes les années</option><option value="BCPST1">BCPST1</option><option value="BCPST2">BCPST2</option></select></label><p class="field-help">Les questions communes sont incluses dans chaque année.</p><fieldset><legend>Chapitres</legend><div class="chapter-choices"><button type="button" :class="{ chosen: !selected.length }" :aria-pressed="!selected.length" @click="selected = []">Tous<Check v-if="!selected.length" :size="16" /></button><button v-for="chapter in chapterChoices" :key="chapter.id" type="button" :class="{ chosen: selected.includes(chapter.id) }" :aria-pressed="selected.includes(chapter.id)" @click="toggle(chapter.id)">{{ chapterLabel(chapters, chapter.id) }} · {{ chapterCount(chapters, yearCounts, chapter.id) }} QCS<Check v-if="selected.includes(chapter.id)" :size="16" /></button></div></fieldset>
+            <label>Année BCPST<select v-model="schoolYear" class="select" aria-label="Année BCPST"><option value="all">Toutes les années</option><option value="BCPST1">BCPST1</option><option value="BCPST2">BCPST2</option></select></label><p class="field-help">Les questions communes sont incluses dans chaque année.</p><fieldset><legend>Chapitres</legend><ChapterPicker v-model="selected" :chapters="chapters" :counts="yearCounts" :disabled="!!busy" unit="QCS" /></fieldset>
             <div class="setting-fields"><label>Difficulté<select v-model="difficulty"><option value="all">Tous les niveaux</option><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label><label>Questions<select v-model="count"><option :value="5">5 questions</option><option :value="10">10 questions</option><option :value="15">15 questions</option></select></label></div>
           </div>
         </details>
