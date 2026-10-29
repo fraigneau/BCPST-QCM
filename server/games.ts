@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { randomInt, randomUUID } from 'node:crypto'
 import type { AnswerResult, Difficulty, GameState, Question, User } from '../shared/types.ts'
-import { readQuestions, readVisibleAnswers } from './database.ts'
+import { readQuestions, readVisibleAnswers, playedQuestionSources } from './database.ts'
 
 export class ApiError extends Error {
   status: number
@@ -52,14 +52,15 @@ export class Games {
   }
 
   create(user: User, mode: 'solo' | 'multi', config: { chapterIds: string[]; difficulty: 'all' | Difficulty; count: number; mistakesOnly?: boolean }) {
-    let pool = readQuestions(this.db).filter(q => q.status === 'published' && config.chapterIds.includes(q.chapterId) && (config.difficulty === 'all' || q.difficulty === config.difficulty))
+    let pool = readQuestions(this.db).filter(q => q.status === 'published' && (q.usage ?? 'solo') === (mode === 'solo' ? 'solo' : 'challenge') && (mode !== 'multi' || q.correctAnswers.length === 1) && config.chapterIds.includes(q.chapterId) && (config.difficulty === 'all' || q.difficulty === config.difficulty))
     if (config.mistakesOnly) {
       const latest = new Map<string, boolean>()
-      for (const answer of readVisibleAnswers(this.db, user.id)) latest.set(String(answer.question_id), Number(answer.correct) === 0)
+      const sources = playedQuestionSources(this.db)
+      for (const answer of readVisibleAnswers(this.db, user.id)) latest.set(sources.get(`${answer.game_id}:${answer.question_id}`) ?? String(answer.question_id), Number(answer.correct) === 0)
       const ids = new Set([...latest].filter(([, wrong]) => wrong).map(([id]) => id))
       pool = pool.filter(q => ids.has(q.id))
     }
-    if (!pool.length) throw new ApiError(400, 'Aucune question disponible pour cette sélection.')
+    if (!pool.length) throw new ApiError(400, mode === 'solo' ? 'Aucun QCM solo publié pour cette sélection.' : 'Aucune variante QCS publiée pour ces chapitres.')
     for (let i = pool.length - 1; i > 0; i--) {
       const j = randomInt(i + 1)
       ;[pool[i], pool[j]] = [pool[j]!, pool[i]!]
@@ -127,6 +128,7 @@ export class Games {
   }
 
   answer(game: StoredGame, userId: string, selected: number[]) {
+    if (game.mode === 'multi' && game.questions[game.questionIndex]?.usage === 'challenge' && selected.length !== 1) throw new ApiError(400, 'Choisissez une seule réponse pour ce défi.')
     this.member(game, userId)
     if (this.answerRows(game.id, userId).some(r => r.index === game.questionIndex)) throw new ApiError(409, 'Votre réponse a déjà été enregistrée.')
     if (game.status !== 'playing' || game.phase !== 'question' || (game.mode === 'multi' && Date.now() >= game.deadline!)) throw new ApiError(409, 'Le délai de réponse est écoulé.')
@@ -188,7 +190,7 @@ export class Games {
     const rows = this.answerRows(game.id)
     const mine = rows.filter(r => r.userId === userId)
     const q = game.status === 'waiting' || game.status === 'finished' ? null : game.questions[game.questionIndex]!
-    const question = q ? { id: q.id, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, image: q.image, status: q.status, createdAt: q.createdAt, updatedAt: q.updatedAt } : null
+    const question = q ? { usage: q.usage ?? 'solo', id: q.id, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, image: q.image, status: q.status, createdAt: q.createdAt, updatedAt: q.updatedAt } : null
     const current = mine.find(r => r.index === game.questionIndex)?.result ?? null
     const reveal = game.mode === 'solo' || game.phase === 'correction' || game.status === 'finished'
     return {

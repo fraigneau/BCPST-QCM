@@ -28,6 +28,12 @@ Sur le projet de développement `bogagjweldkzbgdvpxsw`, les cinq migrations ont 
 
 La migration supplémentaire `20261026160000_username_auth.sql` et la fonction `username-login` sont préparées pour la connexion par pseudo. Elles ne sont pas encore appliquées depuis cette session. Suivre [USERNAME_LOGIN.md](USERNAME_LOGIN.md) pour les activer ; le déploiement du frontend Cloudflare seul ne suffit pas.
 
+## Chapitres et modes de questions
+
+La migration `20261029180000_chapters_question_modes.sql` ajoute les chapitres administrables, l’usage solo/défi et les liens entre les variantes. Elle doit être appliquée avant de publier le frontend correspondant. Elle laisse toutes les questions existantes en solo et ne modifie ni les réponses ni les parties déjà enregistrées. Les nouveaux salons exigent des variantes QCS publiées : en créer puis en valider au moins une avant de tester un défi. Les salons déjà créés conservent leurs snapshots et leurs anciennes règles de sélection.
+
+Tester `supabase/tests/0003_cloud_game.sql`, `0004_cloud_content.sql`, `username_auth.sql` et `0005_chapters_question_modes.sql` après migration. Le dernier script teste les rôles, les chapitres, les sources, la sélection par mode, les réponses multiples refusées en défi, la révision des erreurs et le remappage atomique des imports. Il annule ses données. L’évolution est préparée dans le dépôt ; elle n’a pas été appliquée au projet distant pendant cette implémentation.
+
 ## Comptes et rôles
 
 Le compte du tableau de bord Supabase et le compte Auth de l’application sont distincts. Le propriétaire doit utiliser un compte réel créé dans **Authentication → Users**, avec sa véritable adresse et un mot de passe conservé dans son gestionnaire personnel.

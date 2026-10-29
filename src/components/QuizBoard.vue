@@ -55,7 +55,7 @@ watch(() => props.game.result, async (result, previous) => {
       </div>
 
       <div class="answer-tray">
-        <p id="answer-help" class="answer-help">{{ competitive ? 'Choisis tes réponses, puis valide.' : 'Une ou plusieurs réponses peuvent être exactes.' }}</p>
+        <p id="answer-help" class="answer-help">{{ game.question.usage === 'challenge' ? 'Une seule bonne réponse. Choisis, puis valide.' : 'Une ou plusieurs réponses peuvent être exactes.' }}</p>
         <div class="answer-grid" role="group" aria-labelledby="quiz-question" aria-describedby="answer-help">
           <button
             v-for="(option, index) in game.question.options"

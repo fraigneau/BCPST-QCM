@@ -40,6 +40,10 @@ Les changements d’identité invalident l’état précédent et interrompent l
 
 Les questions sont sélectionnées côté serveur et une partie conserve ses questions. La transaction refuse une réponse d’un non-membre, une question devenue obsolète et un second enregistrement de la même réponse. Le client transmet ses choix, jamais un score à accepter.
 
+Chaque question porte un usage `solo` ou `challenge`. Une variante `challenge` référence une question solo accessible du même chapitre (`sourceQuestionId`) et possède exactement une bonne réponse. Les créations, modifications et suppressions contrôlent la cohérence des liens côté serveur ; les variantes sont validées indépendamment. Les parties solo tirent uniquement les questions solo, les nouveaux salons uniquement les QCS de défi. Les chapitres sont créés et renommés par l’administrateur via les commandes serveur, sans changer leurs identifiants.
+
+Une erreur en défi rejoint la notion solo dans « Revoir mes erreurs ». La dernière réponse visible à la source ou à l’une de ses variantes détermine si la notion reste à revoir ; les scores et corrections des parties restent conservés dans leurs snapshots.
+
 En solo, il n’y a pas d’échéance. La sélection exacte de toutes les bonnes réponses vaut 100 points, sans bonus ; toute autre réponse vaut zéro. La correction reste visible jusqu’à la commande suivante. Une interruption n’oblige pas à recommencer le quiz.
 
 En multijoueur, PostgreSQL fixe l’heure de départ, l’échéance de 30 secondes et le calcul du bonus. Une bonne réponse rapporte `100 + floor(50 × max(0, 1 − tempsÉcoulé / durée))`. Une réponse incorrecte, partielle ou hors délai vaut zéro. La correction commune dure cinq secondes et ne doit pas être divulguée aux joueurs qui réfléchissent encore.

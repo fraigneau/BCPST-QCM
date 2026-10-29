@@ -86,7 +86,8 @@ export function openDatabase(path: string) {
     try {
       for (const input of seedQuestions) {
         const q: Question = { ...input, id: randomUUID(), authorId: 'demo-admin', createdAt: now, updatedAt: now }
-        db.prepare('INSERT INTO questions(id,author_id,status,chapter_id,body) VALUES (?,?,?,?,?)').run(q.id, q.authorId, q.status, q.chapterId, JSON.stringify(q))
+        writeQuestion(db, { ...q, usage: 'solo', sourceQuestionId: null })
+        if (q.correctAnswers.length === 1) writeQuestion(db, { ...q, id: randomUUID(), usage: 'challenge', sourceQuestionId: q.id })
       }
       db.prepare('INSERT INTO metadata(key,value) VALUES (?,?)').run('seeded', now)
       db.exec('COMMIT')
@@ -118,4 +119,14 @@ export function readVisibleAnswers(db: DatabaseSync, userId?: string, chapterId?
 
 export function writeQuestion(db: DatabaseSync, q: Question) {
   db.prepare('INSERT INTO questions(id,author_id,status,chapter_id,body) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,chapter_id=excluded.chapter_id,body=excluded.body').run(q.id, q.authorId, q.status, q.chapterId, JSON.stringify(q))
+}
+
+// Les liens de révision suivent la version réellement jouée, pas une variante modifiée ensuite.
+export function playedQuestionSources(db: DatabaseSync): Map<string, string> {
+  const sources = new Map<string, string>()
+  for (const row of db.prepare('SELECT id,body FROM games').all()) {
+    const game = JSON.parse(String(row.body)) as { questions: Question[] }
+    for (const q of game.questions) sources.set(`${row.id}:${q.id}`, q.sourceQuestionId ?? q.id)
+  }
+  return sources
 }
