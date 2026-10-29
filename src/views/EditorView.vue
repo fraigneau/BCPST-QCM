@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Check, Download, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, Search, Send, Trash2, Upload, X } from '../components/icons'
+import { ArrowLeft, ArrowRight, Check, Download, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, Search, Send, Trash2, X } from '../components/icons'
 import QuestionFolders from '../components/QuestionFolders.vue'
+import QuestionImport from '../components/QuestionImport.vue'
 import type { Chapter, Question, QuestionInput, QuestionStatus, QuestionUsage } from '../../shared/types'
 import { api, backendMode, post, refreshSession, session } from '../services/api'
 import { notify } from '../services/feedback'
@@ -35,7 +36,6 @@ const editingId = ref<string | null>(null)
 const deleteId = ref<string | null>(null)
 const formError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
-const importInput = ref<HTMLInputElement | null>(null)
 const blank = (): QuestionInput => ({ usage: 'solo', sourceQuestionId: null, chapterId: activeChapter.value?.id || session.bootstrap?.chapters[0]?.id || '', difficulty: 'easy', prompt: '', options: ['', '', '', ''], correctAnswers: [], explanation: '', image: null, status: 'draft' })
 const form = ref<QuestionInput>(blank())
 const allowed = computed(() => session.user?.role === 'admin' || session.user?.role === 'contributor')
@@ -161,24 +161,9 @@ async function exportQuestions() {
   } catch (cause) { error.value = (cause as Error).message }
   finally { transferBusy.value = false }
 }
-async function importQuestions(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  transferBusy.value = true
-  error.value = ''
-  try {
-    if (file.size > 5 * 1024 * 1024) throw new Error('Le fichier doit peser moins de 5 Mo.')
-    const data: unknown = JSON.parse(await file.text())
-    if (!Array.isArray(data) || !data.length) throw new Error('Le fichier doit contenir une liste JSON de questions.')
-    const payload = data.map(question => {
-      if (!question || typeof question !== 'object' || Array.isArray(question)) throw new Error('Chaque entrée doit être une question.')
-      return { id: question.id, usage: question.usage ?? 'solo', sourceQuestionId: question.sourceQuestionId ?? null, chapterId: question.chapterId, difficulty: question.difficulty, prompt: question.prompt, options: question.options, correctAnswers: question.correctAnswers, explanation: question.explanation, image: question.image || null, status: 'draft' } })
-    const result = await post<{ imported: number }>('/questions/import', { questions: payload })
-    await load()
-    notify(`${result.imported} questions importées en brouillon.`)
-  } catch (cause) { error.value = cause instanceof SyntaxError ? 'Ce fichier ne contient pas de JSON valide.' : (cause as Error).message }
-  finally { transferBusy.value = false; input.value = '' }
+async function imported() {
+  await load()
+  try { await refreshSession() } catch (cause) { error.value = (cause as Error).message }
 }
 let previousFocus: HTMLElement | null = null
 let previousOverflow = ''
@@ -244,8 +229,7 @@ onBeforeUnmount(() => {
           <p class="muted library-description">{{ browsingFolders ? 'Ouvre un chapitre pour gérer ses QCM solo et ses QCS de défi.' : activeChapter ? activeChapter.description : 'Retrouve les questions de toute la bibliothèque.' }}</p>
         </div>
         <div class="transfer-actions">
-          <input ref="importInput" class="hidden-input" type="file" accept="application/json,.json" @change="importQuestions">
-          <button class="button ghost" :disabled="transferBusy" @click="importInput?.click()"><Upload :size="15" />Importer</button>
+          <QuestionImport :chapters="chapters" :active-chapter-id="activeChapter?.id" :disabled="transferBusy || loading" @imported="imported" />
           <button class="button ghost" :disabled="transferBusy || loading || !filtered.length" @click="exportQuestions"><Download :size="15" />{{ activeChapter ? 'Exporter ce chapitre' : 'Exporter' }}</button>
           <button v-if="activeChapter && session.user?.role === 'admin'" class="button ghost" @click="editChapter(activeChapter)"><Pencil :size="15" />Renommer</button>
         </div>
@@ -258,7 +242,7 @@ onBeforeUnmount(() => {
           <select v-model="difficultyFilter" class="select" aria-label="Filtrer par difficulté"><option value="all">Tous les niveaux</option><option v-for="(label, key) in difficultyNames" :key="key" :value="key">{{ label }}</option></select>
         </template>
       </div>
-      <details class="import-help"><summary>Quel fichier peut-on importer ?</summary><p>Un fichier JSON exporté de cette application, jusqu’à 500 questions et 5 Mo. Les imports restent en brouillon. Les chapitres doivent déjà exister. Pour conserver les liens, exporte ensemble les QCM solo et leurs variantes. Les fichiers Pronote ou Moodle ne sont pas encore pris en charge.</p></details>
+      <details class="import-help"><summary>Quel fichier peut-on importer ?</summary><p>Un export JSON de cette application ou un XML Moodle / Pronote compatible Moodle, jusqu’à 500 questions et 5 Mo. L’aperçu permet de choisir les chapitres et signale les questions incompatibles. Les QCM XML doivent avoir quatre propositions ; une illustration PNG, JPEG ou WebP intégrée est acceptée. Les imports restent en brouillon. Pour le JSON, exporte ensemble les sources solo et leurs variantes.</p></details>
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       <div v-if="loading" class="empty-state"><LoaderCircle :size="24" class="spin" /><p>Chargement de la bibliothèque…</p></div>
       <div v-else-if="error" class="empty-state"><button class="button secondary" @click="load">Réessayer</button></div>

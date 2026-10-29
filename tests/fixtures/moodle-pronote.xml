@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="category"><category><text>$course$/Chapitre 1 — Cellules</text></category></question>
+  <question type="multichoice">
+    <name><text>Constitution de la membrane</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Quelles structures composent une membrane&nbsp;cellulaire ?</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>La membrane comprend une <strong>bicouche lipidique</strong> et des protéines.</p>]]></text></generalfeedback>
+    <single>false</single>
+    <answer fraction="50"><text>Lipides</text><feedback format="html"><text>Ils forment la bicouche.</text></feedback></answer>
+    <answer fraction="50"><text>Protéines</text><feedback><text>Elles remplissent diverses fonctions.</text></feedback></answer>
+    <answer fraction="-50"><text>Chromosomes</text></answer>
+    <answer fraction="-50"><text>Ribosomes</text></answer>
+  </question>
+  <question type="category"><category><text>$course$/Chapitre 2 — Organites</text></category></question>
+  <question type="multichoice">
+    <name><text>Identifier le noyau</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Quel compartiment contient la majorité de l’ADN nucléaire ?</p><img src="@@PLUGINFILE@@/schema.png" alt="Schéma de test" />]]></text>
+      <file name="schema.png" path="/" encoding="base64">iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=</file>
+    </questiontext>
+    <single>true</single>
+    <answer fraction="100"><text>Le noyau</text></answer>
+    <answer fraction="0"><text>Le Golgi</text></answer>
+    <answer fraction="0"><text>Le lysosome</text></answer>
+    <answer fraction="0"><text>La membrane</text></answer>
+  </question>
+</quiz>
