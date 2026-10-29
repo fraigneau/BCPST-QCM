@@ -1,5 +1,5 @@
 import { DOMParser, XMLSerializer, type Element, type Node } from '@xmldom/xmldom'
-import type { Chapter, Difficulty, QuestionInput } from '../../shared/types.ts'
+import type { Chapter, SchoolYear, Difficulty, QuestionInput } from '../../shared/types.ts'
 
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 export type ImportedQuestion = QuestionInput & { id?: string }
@@ -77,6 +77,7 @@ function field(element: Element | undefined): FieldText {
 }
 
 function validate(question: ImportedQuestion) {
+  if (question.schoolYear !== undefined && !['BCPST1','BCPST2','both'].includes(question.schoolYear)) throw new Error('Année BCPST invalide.')
   if (typeof question.chapterId !== 'string' || question.chapterId.length > 100) throw new Error('Chapitre invalide.')
   if (!['easy', 'medium', 'hard'].includes(question.difficulty)) throw new Error('Difficulté invalide.')
   if (typeof question.prompt !== 'string' || question.prompt.trim().length < 10 || question.prompt.length > 5000) throw new Error('L’énoncé doit contenir de 10 à 5 000 caractères.')
@@ -104,7 +105,7 @@ function nativeJson(source: string, chapters: Chapter[]): QuestionImportPlan {
       const q = value as ImportedQuestion
       row.originalId = typeof q.id === 'string' ? q.id : undefined
       row.title = typeof q.prompt === 'string' ? q.prompt.slice(0, 160) : row.title
-      const question: ImportedQuestion = { id: q.id, usage: q.usage ?? 'solo', sourceQuestionId: q.sourceQuestionId ?? null, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, correctAnswers: q.correctAnswers, explanation: q.explanation, image: q.image ?? null, status: 'draft' }
+      const question: ImportedQuestion = { schoolYear: q.schoolYear ?? 'both', id: q.id, usage: q.usage ?? 'solo', sourceQuestionId: q.sourceQuestionId ?? null, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, correctAnswers: q.correctAnswers, explanation: q.explanation, image: q.image ?? null, status: 'draft' }
       validate(question)
       if (!chapters.some(chapter => chapter.id === question.chapterId)) throw new Error('Le chapitre de cette question n’existe pas dans cette banque.')
       if (question.id && ids.has(question.id)) throw new Error('Identifiant dupliqué dans le fichier.')
@@ -179,7 +180,7 @@ function moodle(source: string): QuestionImportPlan {
         return value ? `${String.fromCharCode(65 + index)} — ${value}` : ''
       })
       const explanation = [...feedback, ...details].filter(Boolean).join('\n\n')
-      const question: ImportedQuestion = { usage: 'solo', sourceQuestionId: null, chapterId: '', difficulty: 'medium', prompt: prompt.value, options: answerFields.map(answer => answer.value), correctAnswers, explanation: explanation.length >= 10 ? explanation : [explanation, 'Correction à compléter après import.'].filter(Boolean).join('\n\n'), image: null, status: 'draft' }
+      const question: ImportedQuestion = { schoolYear: 'both', usage: 'solo', sourceQuestionId: null, chapterId: '', difficulty: 'medium', prompt: prompt.value, options: answerFields.map(answer => answer.value), correctAnswers, explanation: explanation.length >= 10 ? explanation : [explanation, 'Correction à compléter après import.'].filter(Boolean).join('\n\n'), image: null, status: 'draft' }
       if (explanation.length < 10) row.warnings.push('Correction absente ou trop courte : à compléter dans le brouillon avant publication.')
       const imageElement = child(element, 'image')
       const legacyImage = imageElement && !children(imageElement).length ? text(imageElement) : ''
@@ -218,14 +219,14 @@ export function parseQuestionImport(source: string, chapters: Chapter[]): Questi
   return value.startsWith('<') ? moodle(value) : nativeJson(value, chapters)
 }
 
-export function importPayload(plan: QuestionImportPlan, selected: number[], mapping: Record<string, string>, difficulty: Difficulty, chapters: Chapter[]): ImportedQuestion[] {
+export function importPayload(plan: QuestionImportPlan, selected: number[], mapping: Record<string, string>, difficulty: Difficulty, chapters: Chapter[], schoolYear: SchoolYear = 'both'): ImportedQuestion[] {
   const rows = plan.rows.filter(row => selected.includes(row.index))
   if (!rows.length || rows.length > 500) throw new Error('Sélectionne de 1 à 500 questions compatibles.')
   return rows.map(row => {
     if (row.error || !row.question) throw new Error('Une question sélectionnée est incompatible.')
     if (plan.format === 'json' && row.question.sourceQuestionId && plan.rows.some(other => other.originalId === row.question!.sourceQuestionId) && !rows.some(other => other.question?.id === row.question!.sourceQuestionId && !other.error)) throw new Error('Sélectionne aussi la question solo source présente dans le fichier.')
     const question = { ...row.question, image: row.uploadedImage ?? row.question.image, status: 'draft' as const }
-    if (plan.format === 'moodle') { question.chapterId = mapping[row.category] ?? ''; question.difficulty = difficulty }
+    if (plan.format === 'moodle') { question.chapterId = mapping[row.category] ?? ''; question.difficulty = difficulty; question.schoolYear = schoolYear }
     if (!chapters.some(chapter => chapter.id === question.chapterId)) throw new Error('Choisis un chapitre existant pour chaque catégorie sélectionnée.')
     validate(question)
     return question

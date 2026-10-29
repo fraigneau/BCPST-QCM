@@ -40,6 +40,10 @@ Les changements d’identité invalident l’état précédent et interrompent l
 
 Les questions sont sélectionnées côté serveur et une partie conserve ses questions. La transaction refuse une réponse d’un non-membre, une question devenue obsolète et un second enregistrement de la même réponse. Le client transmet ses choix, jamais un score à accepter.
 
+Les questions portent aussi `schoolYear` : `BCPST1`, `BCPST2` ou `both` (valeur des anciennes questions). Le filtrage par année des parties est exécuté côté serveur et inclut les questions communes. Les comptes bootstrap sont fournis par chapitre exact, par usage et par année ; l’interface agrège les descendants pour un chapitre principal. Les exports JSON conservent l’année, l’import XML permet de la choisir pour le lot.
+
+`chapters.parent_id` définit deux niveaux : chapitre principal et sous-chapitre direct. Seuls les administrateurs gèrent cette structure. Les RPC et une contrainte différée interdisent les cycles et un troisième niveau. La sélection d’un parent étend le pool de jeu à ses enfants, sans doublon ; chaque question conserve son chapitre précis. L’année est copiée dans le snapshot de partie : modifier la banque ensuite ne change pas une partie existante.
+
 Chaque question porte un usage `solo` ou `challenge`. Une variante `challenge` référence une question solo accessible du même chapitre (`sourceQuestionId`) et possède exactement une bonne réponse. Les créations, modifications et suppressions contrôlent la cohérence des liens côté serveur ; les variantes sont validées indépendamment. Les parties solo tirent uniquement les questions solo, les nouveaux salons uniquement les QCS de défi. Les chapitres sont créés et renommés par l’administrateur via les commandes serveur, sans changer leurs identifiants.
 
 Une erreur en défi rejoint la notion solo dans « Revoir mes erreurs ». La dernière réponse visible à la source ou à l’une de ses variantes détermine si la notion reste à revoir ; les scores et corrections des parties restent conservés dans leurs snapshots.

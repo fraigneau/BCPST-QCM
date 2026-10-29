@@ -34,6 +34,12 @@ La migration `20261029044024_chapters_question_modes.sql` ajoute les chapitres a
 
 Tester `supabase/tests/0003_cloud_game.sql`, `0004_cloud_content.sql`, `username_auth.sql` et `0005_chapters_question_modes.sql` après migration. Le dernier script teste les rôles, les chapitres, les sources, la sélection par mode, les réponses multiples refusées en défi, la révision des erreurs et le remappage atomique des imports. Il annule ses données. La migration a été appliquée au projet `bogagjweldkzbgdvpxsw` le 29 octobre 2026 via le MCP Supabase, sous la version `20261029044024`. Le fichier a été renommé pour correspondre à cette version attribuée par Supabase, sans changer son contenu SQL. Le script `0005_chapters_question_modes.sql` a réussi sur la base distante dans une transaction annulée. Les 50 questions, leurs corrections, les 5 chapitres et les 50 snapshots ont été comparés à la sauvegarde préalable et sont conservés. Les comptes et résultats n’ont pas changé ; aucun utilisateur temporaire du test ne subsiste. Les 50 questions sont en solo et aucune variante QCS n’a été créée par la migration.
 
+## Années BCPST et sous-chapitres
+
+Appliquer `20261029140000_school_years_subchapters.sql` **avant** de publier le frontend correspondant. Cette nouvelle migration ajoute `questions.school_year` et `chapters.parent_id`, puis adapte les RPC de contenu et de jeu. Les questions existantes deviennent communes aux deux années (`both`) ; les chapitres existants restent principaux. Aucun énoncé, réponse, score ou snapshot existant n’est réécrit. Le classement pédagogique BCPST1/BCPST2 se fait ensuite dans l’éditeur, sans déduction automatique.
+
+Exécuter `supabase/tests/0006_school_years_subchapters.sql` après migration, ainsi que les suites de régression de jeu/contenu. Ce script annule ses données. Il couvre les droits, la hiérarchie à deux niveaux, les années, les comptes, la sélection des descendants, l’absence de doublons et la conservation des snapshots. La migration a été vérifiée en PostgreSQL embarqué local ; elle n’a pas été appliquée au projet Supabase distant pour cette PR.
+
 ## Comptes et rôles
 
 Le compte du tableau de bord Supabase et le compte Auth de l’application sont distincts. Le propriétaire doit utiliser un compte réel créé dans **Authentication → Users**, avec sa véritable adresse et un mot de passe conservé dans son gestionnaire personnel.

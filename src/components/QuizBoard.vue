@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { schoolYearLabel } from '../../shared/curriculum'
 import { computed, nextTick, ref, watch } from 'vue'
 import { ArrowRight, Check, CheckCircle2, Clock3, Lightbulb, X } from './icons'
 import type { Chapter, GameState } from '../../shared/types'
@@ -49,7 +50,7 @@ watch(() => props.game.result, async (result, previous) => {
 
     <section v-if="game.question" class="question-stage" aria-labelledby="quiz-question">
       <div class="question-content">
-        <div class="question-meta"><span :style="{ color: chapter?.color }">{{ chapter?.shortName }}</span><span class="difficulty-tag">{{ difficultyNames[game.question.difficulty] }}</span></div>
+        <div class="question-meta"><span :style="{ color: chapter?.color }">{{ chapter?.shortName }}</span><span v-if="game.question.schoolYear" class="difficulty-tag">{{ schoolYearLabel(game.question.schoolYear) }}</span><span class="difficulty-tag">{{ difficultyNames[game.question.difficulty] }}</span></div>
         <h1 id="quiz-question">{{ game.question.prompt }}</h1>
         <figure v-if="game.question.image" class="question-document"><img :src="game.question.image" alt="Document associé à la question" /></figure>
       </div>

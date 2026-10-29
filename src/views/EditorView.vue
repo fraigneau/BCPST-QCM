@@ -4,7 +4,8 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vu
 import { ArrowLeft, ArrowRight, Check, Download, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, Search, Send, Trash2, X } from '../components/icons'
 import QuestionFolders from '../components/QuestionFolders.vue'
 import QuestionImport from '../components/QuestionImport.vue'
-import type { Chapter, Question, QuestionInput, QuestionStatus, QuestionUsage } from '../../shared/types'
+import { chapterLabel, orderedChapters, selectedChapterIds, matchesSchoolYear, schoolYearLabel, schoolYears } from '../../shared/curriculum'
+import type { SchoolYearFilter, Chapter, Question, QuestionInput, QuestionStatus, QuestionUsage } from '../../shared/types'
 import { api, backendMode, post, refreshSession, session } from '../services/api'
 import { notify } from '../services/feedback'
 import { filterLibraryQuestions } from '../services/question-library'
@@ -15,6 +16,8 @@ const router = useRouter()
 const questions = ref<Question[]>([])
 const loading = ref(true)
 const search = ref('')
+const schoolYearFilter = ref<SchoolYearFilter>('all')
+const chapterParent = ref<string | null>(null)
 const usageFilter = ref<QuestionUsage | 'all'>('all')
 const chapterEditor = ref(false)
 const editingChapter = ref<string | null>(null)
@@ -36,13 +39,17 @@ const editingId = ref<string | null>(null)
 const deleteId = ref<string | null>(null)
 const formError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
-const blank = (): QuestionInput => ({ usage: 'solo', sourceQuestionId: null, chapterId: activeChapter.value?.id || session.bootstrap?.chapters[0]?.id || '', difficulty: 'easy', prompt: '', options: ['', '', '', ''], correctAnswers: [], explanation: '', image: null, status: 'draft' })
+const blank = (): QuestionInput => ({ schoolYear: schoolYearFilter.value === 'all' ? 'both' : schoolYearFilter.value, usage: 'solo', sourceQuestionId: null, chapterId: activeChapter.value?.id || session.bootstrap?.chapters[0]?.id || '', difficulty: 'easy', prompt: '', options: ['', '', '', ''], correctAnswers: [], explanation: '', image: null, status: 'draft' })
 const form = ref<QuestionInput>(blank())
 const allowed = computed(() => session.user?.role === 'admin' || session.user?.role === 'contributor')
 const chapters = computed(() => session.bootstrap?.chapters || [])
+const chapterChoices = computed(() => orderedChapters(chapters.value))
+const childChapters = computed(() => activeChapter.value ? chapters.value.filter(chapter => chapter.parentId === activeChapter.value!.id) : [])
+const parentChapter = computed(() => chapters.value.find(chapter => chapter.id === activeChapter.value?.parentId))
+const visibleFolderQuestions = computed(() => questions.value.filter(q => matchesSchoolYear(q.schoolYear, schoolYearFilter.value)))
 const statusNames: Record<QuestionStatus, string> = { draft: 'Brouillon', pending: 'À valider', published: 'Publiée', rejected: 'À retravailler' }
 const difficultyNames = { easy: 'Facile', medium: 'Intermédiaire', hard: 'Difficile' }
-const filters = computed(() => ({ usage: usageFilter.value === 'all' ? undefined : usageFilter.value, chapterId: activeChapter.value?.id, status: statusFilter.value === 'all' ? undefined : statusFilter.value, difficulty: difficultyFilter.value === 'all' ? undefined : difficultyFilter.value, search: search.value }))
+const filters = computed(() => ({ schoolYear: schoolYearFilter.value, chapterIds: activeChapter.value ? selectedChapterIds(chapters.value, [activeChapter.value.id]) : undefined, usage: usageFilter.value === 'all' ? undefined : usageFilter.value, chapterId: activeChapter.value?.id, status: statusFilter.value === 'all' ? undefined : statusFilter.value, difficulty: difficultyFilter.value === 'all' ? undefined : difficultyFilter.value, search: search.value }))
 const filtered = computed(() => filterLibraryQuestions(questions.value, filters.value))
 const sourceQuestions = computed(() => questions.value.filter(question => (question.usage ?? 'solo') === 'solo' && question.chapterId === form.value.chapterId && question.id !== editingId.value))
 const pendingCount = computed(() => questions.value.filter(question => question.status === 'pending').length)
@@ -51,7 +58,7 @@ watch(() => form.value.usage, usage => { if (usage === 'solo') form.value.source
 watch(() => form.value.chapterId, () => { if (!sourceQuestions.value.some(q => q.id === form.value.sourceQuestionId)) form.value.sourceQuestionId = null })
 watch(chapterFilter, () => { usageFilter.value = 'all'; search.value = ''; statusFilter.value = 'all'; difficultyFilter.value = 'all' })
 watch(browsingFolders, browsing => { if (browsing) { usageFilter.value = 'all'; statusFilter.value = 'all'; difficultyFilter.value = 'all' } })
-function chapterName(id: string) { return chapters.value.find(chapter => chapter.id === id)?.shortName || id }
+function chapterName(id: string) { return chapterLabel(chapters.value, id) }
 function canEdit(question: Question) { return session.user?.role === 'admin' || (question.authorId === session.user?.id && question.status !== 'published') }
 async function load() {
   loading.value = true
@@ -72,14 +79,15 @@ async function openFolder(chapterId?: string) {
 function open(question?: Question) {
   formError.value = ''
   editingId.value = question?.id || null
-  form.value = question ? { usage: question.usage ?? 'solo', sourceQuestionId: question.sourceQuestionId ?? null, chapterId: question.chapterId, difficulty: question.difficulty, prompt: question.prompt, options: [...question.options], correctAnswers: [...question.correctAnswers], explanation: question.explanation, image: question.image, status: question.status === 'draft' ? 'draft' : 'pending' } : blank()
+  form.value = question ? { schoolYear: question.schoolYear ?? 'both', usage: question.usage ?? 'solo', sourceQuestionId: question.sourceQuestionId ?? null, chapterId: question.chapterId, difficulty: question.difficulty, prompt: question.prompt, options: [...question.options], correctAnswers: [...question.correctAnswers], explanation: question.explanation, image: question.image, status: question.status === 'draft' ? 'draft' : 'pending' } : blank()
   showEditor.value = true
 }
 function createVariant(question: Question) {
   open()
-  form.value = { ...blank(), usage: 'challenge', sourceQuestionId: question.id, chapterId: question.chapterId, difficulty: question.difficulty, prompt: question.prompt, options: [...question.options], explanation: question.explanation, image: question.image }
+  form.value = { ...blank(), schoolYear: question.schoolYear ?? 'both', usage: 'challenge', sourceQuestionId: question.id, chapterId: question.chapterId, difficulty: question.difficulty, prompt: question.prompt, options: [...question.options], explanation: question.explanation, image: question.image }
 }
-function editChapter(chapter?: Chapter) {
+function editChapter(chapter?: Chapter, parentId: string | null = null) {
+  chapterParent.value = chapter?.parentId ?? parentId
   editingChapter.value = chapter?.id ?? null
   chapterNameInput.value = chapter?.name ?? ''
   chapterDescription.value = chapter?.description ?? ''
@@ -91,7 +99,7 @@ async function saveChapter() {
   savingChapter.value = true
   chapterError.value = ''
   try {
-    const input = { name: chapterNameInput.value.trim(), description: chapterDescription.value.trim() }
+    const input = { name: chapterNameInput.value.trim(), description: chapterDescription.value.trim(), parentId: chapterParent.value }
     const chapter = editingChapter.value
       ? await api<Chapter>(`/chapters/${editingChapter.value}`, { method: 'PATCH', body: JSON.stringify(input) })
       : await post<Chapter>('/chapters', input)
@@ -215,6 +223,7 @@ onBeforeUnmount(() => {
     <header class="page-heading"><div><h1>Questions</h1><p class="muted">Tes chapitres, leurs QCM solo et leurs variantes pour les défis.</p></div><div class="chapter-actions"><button v-if="session.user?.role === 'admin'" class="button secondary" @click="editChapter()"><Plus :size="18" />Nouveau chapitre</button><button class="button" :disabled="!chapters.length" @click="open()"><Plus :size="18" />Nouvelle question</button></div></header>
     <form v-if="chapterEditor && session.user?.role === 'admin'" class="panel chapter-form" @submit.prevent="saveChapter">
       <h2>{{ editingChapter ? 'Renommer le chapitre' : 'Nouveau chapitre' }}</h2>
+      <label class="field">Chapitre parent<select v-model="chapterParent" class="select" :disabled="savingChapter"><option :value="null">Aucun — chapitre principal</option><option v-for="chapter in chapters.filter(item => !item.parentId && item.id !== editingChapter)" :key="chapter.id" :value="chapter.id">{{ chapter.name }}</option></select></label>
       <label class="field">Nom du chapitre<input v-model="chapterNameInput" class="input" placeholder="Chapitre 1 — Les cellules" minlength="2" maxlength="60" :disabled="savingChapter" required></label>
       <label class="field">Description (facultative)<textarea v-model="chapterDescription" class="input" rows="2" maxlength="1000" :disabled="savingChapter"></textarea></label>
       <p v-if="chapterError" class="form-error" role="alert">{{ chapterError }}</p>
@@ -225,17 +234,20 @@ onBeforeUnmount(() => {
       <div class="library-top">
         <div class="library-location">
           <button v-if="!browsingFolders" class="button ghost folder-back" aria-label="Retour aux chapitres" @click="openFolder()"><ArrowLeft :size="18" />Chapitres</button>
+          <button v-if="parentChapter" class="button ghost" @click="openFolder(parentChapter.id)">{{ parentChapter.name }}</button>
           <h2 id="library-title" tabindex="-1">{{ browsingFolders ? 'Les chapitres' : activeChapter?.name || (chapterFilter === 'folders' ? 'Résultats dans tous les chapitres' : 'Toutes les questions') }}</h2>
           <p class="muted library-description">{{ browsingFolders ? 'Ouvre un chapitre pour gérer ses QCM solo et ses QCS de défi.' : activeChapter ? activeChapter.description : 'Retrouve les questions de toute la bibliothèque.' }}</p>
         </div>
         <div class="transfer-actions">
-          <QuestionImport :chapters="chapters" :active-chapter-id="activeChapter?.id" :disabled="transferBusy || loading" @imported="imported" />
+          <QuestionImport :chapters="chapters" :active-chapter-id="activeChapter?.id" :active-school-year="schoolYearFilter === 'all' ? 'both' : schoolYearFilter" :disabled="transferBusy || loading" @imported="imported" />
           <button class="button ghost" :disabled="transferBusy || loading || !filtered.length" @click="exportQuestions"><Download :size="15" />{{ activeChapter ? 'Exporter ce chapitre' : 'Exporter' }}</button>
+          <button v-if="activeChapter && !activeChapter.parentId && session.user?.role === 'admin'" class="button ghost" @click="editChapter(undefined, activeChapter.id)"><Plus :size="15" />Nouveau sous-chapitre</button>
           <button v-if="activeChapter && session.user?.role === 'admin'" class="button ghost" @click="editChapter(activeChapter)"><Pencil :size="15" />Renommer</button>
         </div>
       </div>
       <div class="library-filters">
         <div class="search-box"><Search :size="17" /><input v-model="search" :placeholder="activeChapter ? 'Rechercher dans ce chapitre…' : 'Rechercher dans tous les chapitres…'" aria-label="Rechercher une question"><button v-if="search" class="icon-button" aria-label="Effacer la recherche" @click="search = ''"><X :size="17" /></button></div>
+        <select v-model="schoolYearFilter" class="select" aria-label="Filtrer par année"><option value="all">Toutes les années</option><option value="BCPST1">BCPST1 + communes</option><option value="BCPST2">BCPST2 + communes</option></select>
         <template v-if="!browsingFolders">
           <select v-model="usageFilter" class="select" aria-label="Filtrer par mode"><option value="all">Solo et défis</option><option value="solo">QCM solo</option><option value="challenge">QCS de défi</option></select>
           <select v-model="statusFilter" class="select" aria-label="Filtrer par statut"><option value="all">Tous les statuts</option><option v-for="(label, key) in statusNames" :key="key" :value="key">{{ label }}</option></select>
@@ -247,25 +259,29 @@ onBeforeUnmount(() => {
       <div v-if="loading" class="empty-state"><LoaderCircle :size="24" class="spin" /><p>Chargement de la bibliothèque…</p></div>
       <div v-else-if="error" class="empty-state"><button class="button secondary" @click="load">Réessayer</button></div>
       <template v-else-if="browsingFolders">
-        <QuestionFolders :chapters="chapters" :questions="questions" @open="openFolder" />
+        <QuestionFolders :chapters="chapters" :questions="visibleFolderQuestions" @open="openFolder" />
         <button class="all-questions" @click="openFolder('all')"><span>Voir toutes les questions <small>{{ questions.length }}</small></span><ArrowRight :size="18" /></button>
       </template>
-      <div v-else-if="!filtered.length" class="empty-state">
-        <FilePlus2 :size="29" /><h3>{{ search || usageFilter !== 'all' || statusFilter !== 'all' || difficultyFilter !== 'all' ? 'Aucune question pour ces filtres.' : activeChapter ? 'Ce chapitre attend sa première question.' : 'La bibliothèque attend sa première question.' }}</h3>
-        <p>{{ search || usageFilter !== 'all' || statusFilter !== 'all' || difficultyFilter !== 'all' ? 'Essaie un autre mot ou modifie les filtres.' : activeChapter ? 'Crée une question directement dans ce chapitre.' : 'Crée une question et choisis son chapitre.' }}</p>
+      <template v-else>
+        <QuestionFolders v-if="childChapters.length" :chapters="chapters" :parent-id="activeChapter?.id" :questions="visibleFolderQuestions" @open="openFolder" />
+        <p v-if="childChapters.length" class="muted">Questions du chapitre et de ses sous-chapitres</p>
+      <div v-if="!filtered.length" class="empty-state">
+        <FilePlus2 :size="29" /><h3>{{ search || schoolYearFilter !== 'all' || usageFilter !== 'all' || statusFilter !== 'all' || difficultyFilter !== 'all' ? 'Aucune question pour ces filtres.' : activeChapter ? 'Ce chapitre attend sa première question.' : 'La bibliothèque attend sa première question.' }}</h3>
+        <p>{{ search || schoolYearFilter !== 'all' || usageFilter !== 'all' || statusFilter !== 'all' || difficultyFilter !== 'all' ? 'Essaie un autre mot ou modifie les filtres.' : activeChapter ? 'Crée une question directement dans ce chapitre.' : 'Crée une question et choisis son chapitre.' }}</p>
         <button class="button secondary" @click="open()">Créer une question</button>
       </div>
       <div v-else class="question-list">
         <article v-for="question in filtered" :key="question.id" class="question-row">
           <div class="question-thumbnail"><img v-if="question.image" :src="question.image" alt=""><ImagePlus v-else :size="19" :stroke-width="1.2" /></div>
-          <div class="question-main"><div class="row-labels"><span>{{ chapterName(question.chapterId) }}</span><span>·</span><span>{{ difficultyNames[question.difficulty] }}</span><span class="mode-label">{{ question.usage === 'challenge' ? 'QCS défi' : 'QCM solo' }}</span><span v-if="question.correctAnswers.length > 1" class="multiple-label">Réponses multiples</span></div><h3>{{ question.prompt }}</h3><p v-if="question.sourceQuestionId" class="muted variant-source">Variante de : {{ questions.find(source => source.id === question.sourceQuestionId)?.prompt || 'Question solo' }}</p><p v-if="question.reviewNote" class="review-note">Retour de validation : {{ question.reviewNote }}</p></div>
+          <div class="question-main"><div class="row-labels"><span>{{ chapterName(question.chapterId) }}</span><span>·</span><span>{{ difficultyNames[question.difficulty] }}</span><span>{{ schoolYearLabel(question.schoolYear) }}</span><span class="mode-label">{{ question.usage === 'challenge' ? 'QCS défi' : 'QCM solo' }}</span><span v-if="question.correctAnswers.length > 1" class="multiple-label">Réponses multiples</span></div><h3>{{ question.prompt }}</h3><p v-if="question.sourceQuestionId" class="muted variant-source">Variante de : {{ questions.find(source => source.id === question.sourceQuestionId)?.prompt || 'Question solo' }}</p><p v-if="question.reviewNote" class="review-note">Retour de validation : {{ question.reviewNote }}</p></div>
           <div class="question-status"><span class="status-pill" :class="question.status">{{ statusNames[question.status] }}</span><small>{{ new Date(question.updatedAt).toLocaleDateString('fr-FR') }}</small></div>
           <div class="row-actions"><button v-if="(question.usage ?? 'solo') === 'solo'" class="button ghost variant-action" @click="createVariant(question)"><Plus :size="15" />QCS défi</button><template v-if="canEdit(question)"><button class="icon-button" aria-label="Modifier la question" @click="open(question)"><Pencil :size="16" /></button><button class="icon-button delete-button" aria-label="Supprimer la question" @click="deleteId = question.id"><Trash2 :size="16" /></button></template></div>
         </article>
       </div>
+      </template>
       <div class="library-footer"><span>{{ browsingFolders ? chapters.length + ' chapitres · ' : '' }}{{ browsingFolders ? questions.length : filtered.length }} question{{ (browsingFolders ? questions.length : filtered.length) > 1 ? 's' : '' }}</span><span>Les nouvelles questions sont validées avant publication.</span></div>
     </section>
-    <Teleport to="body"><div v-if="showEditor" class="modal-backdrop" @click.self="close"><section class="editor-modal" role="dialog" aria-modal="true" aria-labelledby="editor-title"><header class="modal-header"><div><p class="eyebrow">L’atelier</p><h2 id="editor-title">{{ editingId ? 'Affiner une question' : 'Une nouvelle question' }}</h2></div><button class="icon-button" aria-label="Fermer l’éditeur" :disabled="busy || uploading" @click="close"><X :size="21" /></button></header><form @submit.prevent="save('pending')"><div class="modal-content"><label class="field">Utilisation<select v-model="form.usage" class="select"><option value="solo">QCM solo — comprendre et réviser</option><option value="challenge">QCS défi — réflexes et rapidité</option></select></label><p v-if="form.usage === 'challenge'" class="review-info">Reformule l’énoncé pour une réponse rapide, avec une seule bonne réponse. La variante sera validée séparément.</p><div class="editor-config"><label class="field">Chapitre<select v-model="form.chapterId" class="select" required><option v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">{{ chapter.name }}</option></select></label><label class="field">Difficulté<select v-model="form.difficulty" class="select"><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label></div><label v-if="form.usage === 'challenge'" class="field">Question solo source<select v-model="form.sourceQuestionId" class="select" required><option :value="null" disabled>Choisir dans ce chapitre</option><option v-for="source in sourceQuestions" :key="source.id" :value="source.id">{{ source.prompt }}</option></select></label><label class="field">L’énoncé<textarea v-model="form.prompt" class="input" placeholder="Posez une question claire et précise…" rows="3" minlength="10" maxlength="2000" required></textarea></label><div class="image-field"><input ref="fileInput" class="hidden-input" type="file" :accept="backendMode === 'supabase' ? 'image/png,image/jpeg,image/webp' : 'image/png,image/jpeg,image/webp,image/gif'" @change="uploadImage"><div v-if="form.image" class="image-preview"><img :src="form.image" alt="Illustration de la question"><button type="button" class="icon-button" aria-label="Retirer l’image" @click="form.image = null"><X :size="17" /></button></div><button v-else type="button" class="upload-area" :disabled="uploading" @click="fileInput?.click()"><ImagePlus :size="24" /><span><strong>{{ uploading ? 'Envoi de l’image…' : 'Ajouter une illustration' }}</strong><small>Schéma, graphique, coupe… PNG, JPEG ou WebP · 2 Mo maximum</small></span><Plus :size="18" /></button></div><fieldset class="options-fieldset"><legend>Les quatre propositions <span>{{ form.usage === 'challenge' ? 'Sélectionne une seule bonne réponse.' : 'Sélectionne toutes les bonnes réponses.' }}</span></legend><div v-for="(_, index) in form.options" :key="index" class="option-edit" :class="{ 'is-correct': form.correctAnswers.includes(index) }"><span>{{ String.fromCharCode(65 + index) }}</span><input v-model="form.options[index]" :aria-label="`Proposition ${String.fromCharCode(65 + index)}`" :placeholder="`Proposition ${String.fromCharCode(65 + index)}`" maxlength="500" required><button type="button" class="correct-toggle" :aria-pressed="form.correctAnswers.includes(index)" :aria-label="`Marquer la proposition ${String.fromCharCode(65 + index)} comme correcte`" @click="toggleAnswer(index)"><Check :size="16" /></button></div></fieldset><label class="field explanation-label">La correction pédagogique<textarea v-model="form.explanation" class="input" placeholder="Expliquez pourquoi les réponses sont justes ou fausses. C’est ici que l’on apprend." rows="4" minlength="10" maxlength="5000" required></textarea></label><p v-if="formError" class="form-error" role="alert">{{ formError }}</p><p class="review-info">La question sera visible dans les quiz après validation par l’administrateur.</p></div><footer class="modal-footer"><button type="button" class="button secondary" :disabled="busy || uploading" @click="save('draft')">Brouillon</button><button class="button" :disabled="busy || uploading"><Send :size="17" />{{ busy ? 'Enregistrement…' : 'Soumettre' }}</button></footer></form></section></div><div v-if="deleteId" class="modal-backdrop" @click.self="!busy && (deleteId = null)"><section class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><Trash2 :size="27" /><h2 id="delete-title">Supprimer cette question ?</h2><p>Elle disparaîtra de la bibliothèque. Les résultats des séances déjà jouées seront conservés.</p><div><button class="button secondary" :disabled="busy" @click="deleteId = null">Conserver</button><button class="button danger" :disabled="busy" @click="remove">{{ busy ? 'Suppression…' : 'Supprimer' }}</button></div></section></div></Teleport>
+    <Teleport to="body"><div v-if="showEditor" class="modal-backdrop" @click.self="close"><section class="editor-modal" role="dialog" aria-modal="true" aria-labelledby="editor-title"><header class="modal-header"><div><p class="eyebrow">L’atelier</p><h2 id="editor-title">{{ editingId ? 'Affiner une question' : 'Une nouvelle question' }}</h2></div><button class="icon-button" aria-label="Fermer l’éditeur" :disabled="busy || uploading" @click="close"><X :size="21" /></button></header><form @submit.prevent="save('pending')"><div class="modal-content"><label class="field">Année BCPST<select v-model="form.schoolYear" class="select"><option v-for="year in schoolYears" :key="year.value" :value="year.value">{{ year.label }}</option></select></label><label class="field">Utilisation<select v-model="form.usage" class="select"><option value="solo">QCM solo — comprendre et réviser</option><option value="challenge">QCS défi — réflexes et rapidité</option></select></label><p v-if="form.usage === 'challenge'" class="review-info">Reformule l’énoncé pour une réponse rapide, avec une seule bonne réponse. La variante sera validée séparément.</p><div class="editor-config"><label class="field">Chapitre<select v-model="form.chapterId" class="select" required><option v-for="chapter in chapterChoices" :key="chapter.id" :value="chapter.id">{{ chapterName(chapter.id) }}</option></select></label><label class="field">Difficulté<select v-model="form.difficulty" class="select"><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label></div><label v-if="form.usage === 'challenge'" class="field">Question solo source<select v-model="form.sourceQuestionId" class="select" required><option :value="null" disabled>Choisir dans ce chapitre</option><option v-for="source in sourceQuestions" :key="source.id" :value="source.id">{{ source.prompt }}</option></select></label><label class="field">L’énoncé<textarea v-model="form.prompt" class="input" placeholder="Posez une question claire et précise…" rows="3" minlength="10" maxlength="2000" required></textarea></label><div class="image-field"><input ref="fileInput" class="hidden-input" type="file" :accept="backendMode === 'supabase' ? 'image/png,image/jpeg,image/webp' : 'image/png,image/jpeg,image/webp,image/gif'" @change="uploadImage"><div v-if="form.image" class="image-preview"><img :src="form.image" alt="Illustration de la question"><button type="button" class="icon-button" aria-label="Retirer l’image" @click="form.image = null"><X :size="17" /></button></div><button v-else type="button" class="upload-area" :disabled="uploading" @click="fileInput?.click()"><ImagePlus :size="24" /><span><strong>{{ uploading ? 'Envoi de l’image…' : 'Ajouter une illustration' }}</strong><small>Schéma, graphique, coupe… PNG, JPEG ou WebP · 2 Mo maximum</small></span><Plus :size="18" /></button></div><fieldset class="options-fieldset"><legend>Les quatre propositions <span>{{ form.usage === 'challenge' ? 'Sélectionne une seule bonne réponse.' : 'Sélectionne toutes les bonnes réponses.' }}</span></legend><div v-for="(_, index) in form.options" :key="index" class="option-edit" :class="{ 'is-correct': form.correctAnswers.includes(index) }"><span>{{ String.fromCharCode(65 + index) }}</span><input v-model="form.options[index]" :aria-label="`Proposition ${String.fromCharCode(65 + index)}`" :placeholder="`Proposition ${String.fromCharCode(65 + index)}`" maxlength="500" required><button type="button" class="correct-toggle" :aria-pressed="form.correctAnswers.includes(index)" :aria-label="`Marquer la proposition ${String.fromCharCode(65 + index)} comme correcte`" @click="toggleAnswer(index)"><Check :size="16" /></button></div></fieldset><label class="field explanation-label">La correction pédagogique<textarea v-model="form.explanation" class="input" placeholder="Expliquez pourquoi les réponses sont justes ou fausses. C’est ici que l’on apprend." rows="4" minlength="10" maxlength="5000" required></textarea></label><p v-if="formError" class="form-error" role="alert">{{ formError }}</p><p class="review-info">La question sera visible dans les quiz après validation par l’administrateur.</p></div><footer class="modal-footer"><button type="button" class="button secondary" :disabled="busy || uploading" @click="save('draft')">Brouillon</button><button class="button" :disabled="busy || uploading"><Send :size="17" />{{ busy ? 'Enregistrement…' : 'Soumettre' }}</button></footer></form></section></div><div v-if="deleteId" class="modal-backdrop" @click.self="!busy && (deleteId = null)"><section class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><Trash2 :size="27" /><h2 id="delete-title">Supprimer cette question ?</h2><p>Elle disparaîtra de la bibliothèque. Les résultats des séances déjà jouées seront conservés.</p><div><button class="button secondary" :disabled="busy" @click="deleteId = null">Conserver</button><button class="button danger" :disabled="busy" @click="remove">{{ busy ? 'Suppression…' : 'Supprimer' }}</button></div></section></div></Teleport>
   </div>
 </template>
 

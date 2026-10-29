@@ -3,10 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 import { ArrowRight, BookOpen, Users, RotateCcw } from '../components/icons'
 import { api, session } from '../services/api'
 import type { GameState } from '../../shared/types'
+import { chapterLabel, chapterCount, orderedChapters } from '../../shared/curriculum'
 import ChapterIcon from '../components/ChapterIcon.vue'
 
 const progress = computed(() => session.bootstrap?.progress)
 const chapters = computed(() => session.bootstrap?.chapters || [])
+const chapterChoices = computed(() => orderedChapters(chapters.value))
 const firstName = computed(() => session.user?.name.split(' ')[0] || '')
 const totalQuestions = computed(() => Object.values(session.bootstrap?.counts || {}).reduce((sum, count) => sum + count, 0))
 const resumed = ref<GameState | null>(null)
@@ -59,9 +61,9 @@ onMounted(async () => {
     <section class="home-chapters" aria-labelledby="home-chapters-title">
       <div class="chapter-list-heading"><h2 id="home-chapters-title">Par chapitre</h2><span>{{ totalQuestions }} questions</span></div>
       <div class="chapter-list">
-        <RouterLink v-for="chapter in chapters" :key="chapter.id" :to="{ path: '/practice', query: { chapter: chapter.id } }" class="home-chapter">
+        <RouterLink v-for="chapter in chapterChoices" :key="chapter.id" :to="{ path: '/practice', query: { chapter: chapter.id } }" class="home-chapter">
           <span class="chapter-emblem" :style="{ color: chapter.color }"><ChapterIcon :id="chapter.id" :size="26" /></span>
-          <span class="chapter-description"><strong>{{ chapter.name }}</strong><small>{{ session.bootstrap?.counts[chapter.id] || 0 }} questions</small></span>
+          <span class="chapter-description"><strong>{{ chapterLabel(chapters, chapter.id) }}</strong><small>{{ chapterCount(chapters, session.bootstrap?.counts ?? {}, chapter.id) }} questions</small></span>
           <ArrowRight :size="18" />
         </RouterLink>
       </div>
