@@ -128,3 +128,7 @@ Un parcours Chromium local vérifie la création d’un chapitre et d’un sous-
 ## Affichage hiérarchique des sous-chapitres
 
 L’affichage regroupe les enfants sous leur parent dans la bibliothèque, l’accueil et les sélections solo/défi. Un parcours Chromium local à 390 px vérifie la structure imbriquée, l’ouverture d’un sous-chapitre, sa sélection individuelle puis celle du parent, l’indication des enfants inclus, et la création de parties solo/défi contenant les questions du sous-chapitre. Aucun débordement horizontal ni erreur JavaScript n’est observé. Les 107 tests Node, le build et `pages:check` passent. Cette correction d’interface ne remplace pas l’application de la migration des années et sous-chapitres ; elle n’a pas été appliquée à distance pour cette PR.
+
+## Recette distante des années et sous-chapitres
+
+Le 29 octobre 2026, `school_years_subchapters` est appliquée au projet réel sous la version `20261029200118`. `0006_school_years_subchapters.sql` réussit dans une transaction annulée. La comparaison avec la sauvegarde préalable confirme 50 questions inchangées hors ajout de l’année commune, 50 corrections et 50 snapshots identiques, ainsi que 9 chapitres conservés. Les trois sous-chapitres désignés ont été rattachés au parent demandé. La RPC bootstrap exécutée sous un rôle authentifié administrateur renvoie les trois liens parent/enfant. Aucun frontend n’est déployé pour cette opération ; un rafraîchissement recharge cette structure dans le frontend déjà publié.
