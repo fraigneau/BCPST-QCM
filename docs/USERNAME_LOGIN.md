@@ -6,7 +6,7 @@ Le frontend utilise Supabase Auth directement pour une adresse e-mail. Un pseudo
 
 Appliquer d’abord `supabase/migrations/20261026160000_username_auth.sql` dans le SQL Editor du projet, puis exécuter `supabase/tests/username_auth.sql`, qui doit terminer par `passed` et annule ses données de test. Ne pas rejouer les anciennes migrations. La fonction attend une colonne `public.profiles.username` normalisée et unique. La migration attribue un pseudo aux comptes existants à partir du nom affiché, en ajoutant un suffixe en cas de doublon ; elle ne change ni les rôles ni les mots de passe. Le pseudo obtenu est visible et modifiable dans « Moi ».
 
-Ces fichiers sont préparés dans le dépôt. Ils n’ont pas été appliqués au projet distant depuis cette session : le connecteur Supabase n’est pas disponible et aucun PostgreSQL local n’est démarré. Déployer la migration et la fonction avant de publier le nouveau formulaire d’inscription.
+Lors du diagnostic du 29 octobre 2026, la fonction distante était active mais refusait le domaine personnalisé `https://qcm.fraigneau.fr` avec un statut 403. Ce domaine fait désormais partie des origines par défaut. La version 2 de la fonction a été déployée le même jour : préflight du domaine personnalisé en 204, domaine tiers en 403, tentative avec pseudo inexistant en 401 avec les en-têtes CORS attendus. Les 84 tests Node passent. Une connexion réussie avec un compte réel reste à confirmer. Vérifier les origines effectives après chaque déploiement, notamment si `ALLOWED_ORIGINS` est défini.
 
 Depuis un terminal Supabase CLI connecté au projet :
 
@@ -20,10 +20,10 @@ La section `[functions.username-login]` de `supabase/config.toml` utilise `verif
 
 La fonction utilise les variables serveur Supabase standard `SUPABASE_URL`, `SUPABASE_ANON_KEY` et `SUPABASE_SERVICE_ROLE_KEY`. Aucune clé privilégiée ne doit être ajoutée aux variables `VITE_`, au frontend, aux exemples de requêtes ou aux journaux. Les clients privilégié et public sont distincts et ne conservent aucune session.
 
-Les origines autorisées par défaut sont `https://bcpst-qcm.pages.dev`, `http://localhost:5173`, `http://localhost:4173` et leurs équivalents `127.0.0.1`. Pour un domaine personnalisé ou une Preview, fournir la liste complète des origines exactes dans la variable serveur `ALLOWED_ORIGINS`, séparées par des virgules, puis redéployer. Cette liste remplace les valeurs par défaut.
+Les origines autorisées par défaut sont `https://qcm.fraigneau.fr`, `https://bcpst-qcm.pages.dev`, `http://localhost:5173`, `http://localhost:4173` et leurs équivalents `127.0.0.1`. Pour un domaine personnalisé ou une Preview, fournir la liste complète des origines exactes dans la variable serveur `ALLOWED_ORIGINS`, séparées par des virgules, puis redéployer. Cette liste remplace les valeurs par défaut.
 
 ```sh
-npx supabase secrets set ALLOWED_ORIGINS=https://bcpst-qcm.pages.dev,http://localhost:5173,http://localhost:4173 --project-ref bogagjweldkzbgdvpxsw
+npx supabase secrets set ALLOWED_ORIGINS=https://qcm.fraigneau.fr,https://bcpst-qcm.pages.dev,http://localhost:5173,http://localhost:4173 --project-ref bogagjweldkzbgdvpxsw
 ```
 
 Le préflight est traité et la liste d’en-têtes CORS provient de la même version du SDK que la fonction. Voir [CORS pour les Edge Functions](https://supabase.com/docs/guides/functions/cors).
