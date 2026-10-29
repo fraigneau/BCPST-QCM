@@ -48,10 +48,13 @@ function folderLabel(folder: typeof folders.value[number]) {
         </span>
         <ArrowRight class="folder-arrow" :size="20" />
       </button>
+      <QuestionFolders v-if="!parentId && chapters.some(child => child.parentId === folder.chapter.id)" class="nested-folders" :chapters="chapters" :questions="questions" :parent-id="folder.chapter.id" @open="emit('open', $event)" />
     </li>
   </ul>
 </template>
 
 <style scoped>
+.question-folders.nested-folders{margin:0 14px 14px 32px;padding-left:8px;border:0;border-left:2px solid #cbded0;border-radius:0}.nested-folders :deep(.folder-row){min-height:80px;padding:12px 8px}.nested-folders :deep(.folder-symbol){width:30px}.nested-folders :deep(.folder-symbol svg){width:30px}.nested-folders :deep(.folder-copy>strong){font-size:14px}
+
 .question-folders{margin:0;padding:0;list-style:none;border:1px solid var(--line,#dfe8e2);border-radius:14px;background:#fff;overflow:hidden}.question-folders>li+li{border-top:1px solid var(--line,#dfe8e2)}.folder-row{display:flex;align-items:center;gap:13px;width:100%;min-height:106px;padding:17px 16px;border:0;background:transparent;color:var(--ink,#17382e);text-align:left;font:inherit;cursor:pointer;touch-action:manipulation}.folder-symbol{display:grid;place-items:center;flex-shrink:0;width:43px;color:var(--green,#21664b)}.folder-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}.folder-copy>strong{font-size:16px;font-weight:600;line-height:1.4;letter-spacing:-.15px;overflow-wrap:anywhere}.folder-total{font-size:14px;line-height:1.5;color:var(--muted,#71847a)}.folder-status{font-size:13px;line-height:1.5;color:var(--muted,#71847a);overflow-wrap:anywhere}.folder-arrow{flex-shrink:0;color:var(--green,#21664b);opacity:.7}.folder-row:hover{background:#f5f8f5}.folder-row:active{background:#edf3ee}.folder-row:focus-visible{position:relative;z-index:1;outline:3px solid var(--green,#21664b);outline-offset:-4px;border-radius:10px}@media(max-width:359px){.folder-row{gap:10px;padding:16px 12px}.folder-symbol{width:36px}.folder-symbol svg{width:36px;height:34px}.folder-arrow{width:18px}}
 </style>

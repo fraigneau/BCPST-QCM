@@ -3,12 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 import { ArrowRight, BookOpen, Users, RotateCcw } from '../components/icons'
 import { api, session } from '../services/api'
 import type { GameState } from '../../shared/types'
-import { chapterLabel, chapterCount, orderedChapters } from '../../shared/curriculum'
+import { chapterCount } from '../../shared/curriculum'
 import ChapterIcon from '../components/ChapterIcon.vue'
 
 const progress = computed(() => session.bootstrap?.progress)
 const chapters = computed(() => session.bootstrap?.chapters || [])
-const chapterChoices = computed(() => orderedChapters(chapters.value))
+const chapterGroups = computed(() => chapters.value.filter(chapter => !chapter.parentId).map(parent => ({ parent, children: chapters.value.filter(child => child.parentId === parent.id) })))
 const firstName = computed(() => session.user?.name.split(' ')[0] || '')
 const totalQuestions = computed(() => Object.values(session.bootstrap?.counts || {}).reduce((sum, count) => sum + count, 0))
 const resumed = ref<GameState | null>(null)
@@ -61,11 +61,13 @@ onMounted(async () => {
     <section class="home-chapters" aria-labelledby="home-chapters-title">
       <div class="chapter-list-heading"><h2 id="home-chapters-title">Par chapitre</h2><span>{{ totalQuestions }} questions</span></div>
       <div class="chapter-list">
-        <RouterLink v-for="chapter in chapterChoices" :key="chapter.id" :to="{ path: '/practice', query: { chapter: chapter.id } }" class="home-chapter">
-          <span class="chapter-emblem" :style="{ color: chapter.color }"><ChapterIcon :id="chapter.id" :size="26" /></span>
-          <span class="chapter-description"><strong>{{ chapterLabel(chapters, chapter.id) }}</strong><small>{{ chapterCount(chapters, session.bootstrap?.counts ?? {}, chapter.id) }} questions</small></span>
-          <ArrowRight :size="18" />
-        </RouterLink>
+        <div v-for="group in chapterGroups" :key="group.parent.id" class="home-chapter-group">
+          <RouterLink :to="{ path: '/practice', query: { chapter: group.parent.id } }" class="home-chapter">
+            <span class="chapter-emblem" :style="{ color: group.parent.color }"><ChapterIcon :id="group.parent.id" :size="26" /></span>
+            <span class="chapter-description"><strong>{{ group.parent.name }}</strong><small>{{ chapterCount(chapters, session.bootstrap?.counts ?? {}, group.parent.id) }} questions<template v-if="group.children.length"> · Sous-chapitres inclus</template></small></span><ArrowRight :size="18" />
+          </RouterLink>
+          <ul v-if="group.children.length" class="home-subchapters" :aria-label="`Sous-chapitres de ${group.parent.name}`"><li v-for="child in group.children" :key="child.id"><RouterLink :to="{ path: '/practice', query: { chapter: child.id } }" class="home-chapter"><span class="chapter-description"><strong>{{ child.name }}</strong><small>{{ session.bootstrap?.counts[child.id] || 0 }} questions</small></span><ArrowRight :size="16" /></RouterLink></li></ul>
+        </div>
       </div>
       <p v-if="!chapters.length" class="chapter-empty">Les chapitres apparaîtront dès que la bibliothèque sera disponible.</p>
     </section>
@@ -75,5 +77,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.home-chapter-group+.home-chapter-group{border-top:1px solid #e7ede8}.home-subchapters{list-style:none;margin:0 14px 12px 38px;padding-left:12px;border-left:2px solid #cbded0}.home-subchapters .home-chapter{padding:12px 8px}.home-subchapters .chapter-description strong{font-size:14px;font-weight:500}
+
 .mobile-home{color:#17382e;font-size:16px;padding-bottom:12px}.home-welcome{margin:4px 0 23px}.home-welcome h1{font-size:27px;line-height:1.25;font-weight:700;letter-spacing:-.7px;overflow-wrap:anywhere}.home-welcome p{color:#687e73;font-size:15px;line-height:1.6;margin-top:7px}.home-resume{display:flex;align-items:center;gap:12px;padding:15px;background:#edf4ef;border:1px solid #c6dbce;border-radius:14px;margin-bottom:18px;min-height:77px}.resume-symbol{height:40px;width:40px;flex-shrink:0;display:grid;place-items:center;background:#dcebe1;color:#21664b;border-radius:12px}.home-resume>span:nth-child(2){flex:1;min-width:0}.home-resume strong{font-size:15px;font-weight:650;display:block;line-height:1.4}.home-resume small{display:block;font-size:13px;color:#5e7a69;margin-top:4px;line-height:1.5}.home-resume>svg{flex-shrink:0;color:#21664b}.home-modes{display:grid;gap:11px}.home-solo,.home-challenge{display:flex;align-items:center;gap:14px;border-radius:18px;padding:22px 18px;min-height:114px}.home-solo{color:#fff;background:#21664b;border:1px solid #21664b}.solo-symbol{width:51px;height:51px;display:grid;place-items:center;border-radius:15px;background:#ffffff1a;flex-shrink:0}.mode-copy{display:grid;gap:7px;min-width:0;flex:1}.mode-copy strong{font-size:20px;line-height:1.25;font-weight:650;letter-spacing:-.35px}.mode-copy>span{font-size:14px;line-height:1.5}.home-solo .mode-copy>span{color:#d3e7dc}.home-solo>svg,.home-challenge>svg{flex-shrink:0}.home-challenge{color:#244d9e;background:#eaf0fc;border:1px solid #d2def6;padding-block:17px;min-height:94px}.challenge-symbol{height:45px;width:45px;flex-shrink:0;display:grid;place-items:center;color:#315ed2;background:#dce6fa;border-radius:13px}.home-challenge .mode-copy strong{font-size:18px;letter-spacing:-.3px}.home-challenge .mode-copy>span{color:#59729a;font-size:13px}.home-numbers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #dfe8e2;border-radius:15px;background:#fff;padding:19px 0;margin:21px 0 28px}.home-numbers>div{text-align:center;padding:0 8px;border-right:1px solid #e5ece7;min-width:0}.home-numbers>div:last-child{border:0}.home-numbers strong{font-size:23px;line-height:1.3;font-weight:700;letter-spacing:-.65px;font-variant-numeric:tabular-nums}.home-numbers strong small{font-size:16px;font-weight:500;letter-spacing:0}.home-numbers span{display:block;font-size:13px;color:#71847a;margin-top:4px}.chapter-list-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:13px}.chapter-list-heading h2{font-size:20px;font-weight:650;letter-spacing:-.4px}.chapter-list-heading>span{font-size:13px;color:#71847a;white-space:nowrap}.chapter-list{background:#fff;border:1px solid #dfe8e2;border-radius:17px;overflow:hidden}.home-chapter{display:flex;align-items:center;gap:13px;min-height:87px;padding:15px 16px;border-bottom:1px solid #e7ede8}.home-chapter:last-child{border:0}.chapter-emblem{height:43px;width:43px;flex-shrink:0;display:grid;place-items:center;background:#f2f5f0;border-radius:13px}.chapter-description{flex:1;min-width:0}.chapter-description strong{display:block;font-size:15px;font-weight:600;line-height:1.4;letter-spacing:-.15px}.chapter-description small{display:block;font-size:13px;color:#71847a;margin-top:5px;line-height:1.4}.home-chapter>svg{color:#84988d;flex-shrink:0}.chapter-empty{font-size:14px;color:#71847a;line-height:1.7;padding:17px 0}.home-mistakes{display:flex;gap:11px;align-items:center;background:#fff;border:1px solid #dfe8e2;border-radius:13px;padding:16px;margin-top:17px;color:#557365;font-size:14px;min-height:57px}.home-mistakes>span:first-of-type{flex:1}.mistake-count{font-size:13px;font-weight:650;background:#edf2ed;border-radius:6px;padding:2px 7px}.mobile-home a:focus-visible{outline:3px solid #21664b;outline-offset:4px}.home-solo:active,.home-challenge:active,.home-resume:active,.home-chapter:active{filter:brightness(.97)}@media(min-width:480px){.home-welcome h1{font-size:30px}.home-solo{min-height:120px;padding:24px}.home-challenge{padding-inline:23px}.home-chapter{padding-inline:20px}}@media(max-width:359px){.home-solo,.home-challenge{gap:11px;padding-inline:14px}.solo-symbol{width:43px;height:43px}.mode-copy strong{font-size:19px}.mode-copy>span{font-size:13px}.home-challenge .mode-copy strong{font-size:16px}.challenge-symbol{width:39px;height:39px}.home-chapter{padding-inline:12px;gap:11px}.chapter-emblem{height:39px;width:39px}.chapter-list-heading>span{font-size:13px}}
 </style>

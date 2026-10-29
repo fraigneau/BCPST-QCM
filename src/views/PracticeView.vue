@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, Check, Leaf, RotateCcw } from '../components/icons'
-import ChapterIcon from '../components/ChapterIcon.vue'
-import { chapterLabel, orderedChapters, selectedChapterIds, chapterCount } from '../../shared/curriculum'
+import { ArrowRight, Leaf, RotateCcw } from '../components/icons'
+import ChapterPicker from '../components/ChapterPicker.vue'
+import { selectedChapterIds } from '../../shared/curriculum'
 import type { SchoolYearFilter, Difficulty, GameState } from '../../shared/types'
 import { api, post, session } from '../services/api'
 
@@ -18,15 +18,11 @@ const busy = ref(false)
 const error = ref('')
 const resumable = ref<GameState | null>(null)
 const chapters = computed(() => session.bootstrap?.chapters || [])
-const chapterChoices = computed(() => orderedChapters(chapters.value))
 const yearCounts = computed(() => schoolYear.value === 'all' ? (session.bootstrap?.counts ?? {}) : (session.bootstrap?.countsByYear?.[schoolYear.value] ?? {}))
 const available = computed(() => selectedChapterIds(chapters.value, selected.value).reduce((total, id) => total + (yearCounts.value[id] ?? 0), 0))
 const levels: { value: Difficulty | 'all'; label: string }[] = [{ value: 'all', label: 'Tous les niveaux' }, { value: 'easy', label: 'Facile' }, { value: 'medium', label: 'Intermédiaire' }, { value: 'hard', label: 'Difficile' }]
 const selectionLabel = computed(() => selected.value.length ? `${selected.value.length} chapitre${selected.value.length > 1 ? 's' : ''}` : 'Tous les chapitres')
 
-function toggle(id: string) {
-  selected.value = selected.value.includes(id) ? selected.value.filter(value => value !== id) : [...selected.value, id]
-}
 async function start() {
   if (busy.value) return
   busy.value = true
@@ -61,13 +57,7 @@ onMounted(async () => {
       <fieldset class="practice-block"><legend>Année BCPST</legend><select v-model="schoolYear" class="select" aria-label="Année BCPST" :disabled="busy"><option value="all">Toutes les années</option><option value="BCPST1">BCPST1</option><option value="BCPST2">BCPST2</option></select><p class="muted">Les questions communes sont incluses dans chaque année.</p></fieldset>
       <fieldset class="practice-block chapter-picker">
         <legend>Les chapitres</legend>
-        <button class="all-chapters" :class="{ chosen: !selected.length }" :aria-pressed="!selected.length" type="button" :disabled="busy" @click="selected = []"><span>Tous les chapitres</span><Check v-if="!selected.length" :size="19" /><span v-else class="selection-ring"></span></button>
-        <div class="practice-chapter-grid">
-          <button v-for="chapter in chapterChoices" :key="chapter.id" class="practice-chapter" :class="{ chosen: selected.includes(chapter.id) }" :aria-pressed="selected.includes(chapter.id)" type="button" :disabled="busy" @click="toggle(chapter.id)">
-            <span class="chapter-button-top"><span class="chapter-icon" :style="{ color: chapter.color }"><ChapterIcon :id="chapter.id" :size="25" /></span><span class="selection-ring"><Check v-if="selected.includes(chapter.id)" :size="13" /></span></span>
-            <strong>{{ chapterLabel(chapters, chapter.id) }}</strong><small>{{ chapterCount(chapters, yearCounts, chapter.id) }} questions</small>
-          </button>
-        </div>
+        <ChapterPicker v-model="selected" :chapters="chapters" :counts="yearCounts" :disabled="busy" />
       </fieldset>
 
       <fieldset class="practice-block difficulty-picker"><legend>Difficulté</legend><div class="difficulty-segments"><label v-for="level in levels" :key="level.value"><input v-model="difficulty" type="radio" name="difficulty" :value="level.value" :disabled="busy"><span>{{ level.label }}</span></label></div></fieldset>
