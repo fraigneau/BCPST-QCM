@@ -6,6 +6,7 @@ import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { networkInterfaces } from 'node:os'
 import { z } from 'zod'
+import { matchesSchoolYear, selectedChapterIds } from '../shared/curriculum.ts'
 import { allocateLocalUsername, openDatabase, publicUser, hashPassword, verifyPassword, readChapters, readQuestions, writeQuestion, readVisibleAnswers, playedQuestionSources } from './database.ts'
 import { ApiError, Games, type StoredGame } from './games.ts'
 import type { Bootstrap, LeaderboardRow, Progress, Question, User } from '../shared/types.ts'
@@ -18,13 +19,14 @@ interface AuthIdentity { user: User; sessionToken: string; expiresAt: number; be
 interface GameStream { userId: string; role: User['role']; gameId: string; sessionToken: string; expiresAt: number; bearerToken: string | null; lastValidatedAt: number; checking: boolean; res: Response }
 
 const questionSchema = z.object({
+  schoolYear: z.enum(['BCPST1', 'BCPST2', 'both']).default('both'),
   usage: z.enum(['solo', 'challenge']).default('solo'), sourceQuestionId: z.string().max(100).nullable().default(null),
   chapterId: z.string().min(1).max(100), difficulty: z.enum(['easy', 'medium', 'hard']),
   prompt: z.string().trim().min(10).max(5000), options: z.array(z.string().trim().min(1).max(1000)).length(4),
   correctAnswers: z.array(z.number().int().min(0).max(3)).min(1).max(4).refine(a => new Set(a).size === a.length),
   explanation: z.string().trim().min(10).max(10000), image: z.string().max(250).nullable(), status: z.enum(['draft', 'pending']),
 })
-const gameSchema = z.object({ chapterIds: z.array(z.string()).max(100).default([]), difficulty: z.enum(['all', 'easy', 'medium', 'hard']).default('all'), count: z.number().int().min(1).max(30).default(10), mistakesOnly: z.boolean().optional() })
+const gameSchema = z.object({ schoolYear: z.enum(['all', 'BCPST1', 'BCPST2']).default('all'), chapterIds: z.array(z.string()).max(100).default([]), difficulty: z.enum(['all', 'easy', 'medium', 'hard']).default('all'), count: z.number().int().min(1).max(30).default(10), mistakesOnly: z.boolean().optional() })
 const tokenHash = (value: string) => createHash('sha256').update(value).digest('hex')
 const parisDay = (date: Date) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 
@@ -243,14 +245,21 @@ export function createApp(options: AppOptions = {}) {
   api.get('/bootstrap', (_req, res) => {
     const chapters = readChapters(db)
     const published = readQuestions(db).filter(q => q.status === 'published')
-    const result: Bootstrap = { user: userOf(res), chapters, counts: Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id && (q.usage ?? 'solo') === 'solo').length])), challengeCounts: Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id && q.usage === 'challenge').length])), progress: progress(userOf(res).id) }
+    const countsFor = (year: 'BCPST1' | 'BCPST2', challenge: boolean) => Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id && matchesSchoolYear(q.schoolYear, year) && (q.usage ?? 'solo') === (challenge ? 'challenge' : 'solo')).length]))
+    const result: Bootstrap = { countsByYear: { BCPST1: countsFor('BCPST1', false), BCPST2: countsFor('BCPST2', false) }, challengeCountsByYear: { BCPST1: countsFor('BCPST1', true), BCPST2: countsFor('BCPST2', true) }, user: userOf(res), chapters, counts: Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id && (q.usage ?? 'solo') === 'solo').length])), challengeCounts: Object.fromEntries(chapters.map(c => [c.id, published.filter(q => q.chapterId === c.id && q.usage === 'challenge').length])), progress: progress(userOf(res).id) }
     res.json(result)
   })
   api.get('/chapters', (_req, res) => res.json(readChapters(db)))
-  const chapterSchema = z.object({ name: z.string().trim().min(2).max(60), description: z.string().trim().max(1000).default('') })
+  const chapterSchema = z.object({ name: z.string().trim().min(2).max(60), description: z.string().trim().max(1000).default(''), parentId: z.string().min(1).max(100).nullable().optional() })
+  function validateParent(parentId: string | null, id?: string) {
+    const chapters = readChapters(db)
+    if (parentId && (parentId === id || !chapters.some(c => c.id === parentId && !c.parentId))) throw new ApiError(400, 'Choisissez un chapitre principal comme parent.')
+    if (id && parentId && chapters.some(c => c.parentId === id)) throw new ApiError(400, 'Un chapitre contenant des sous-chapitres doit rester à la racine.')
+  }
   api.post('/chapters', roles('admin'), (req, res) => {
     const input = parse(chapterSchema, req.body)
-    const chapter = { ...input, id: randomUUID(), shortName: input.name, color: '#648c5f', icon: 'Leaf' }
+    validateParent(input.parentId ?? null)
+    const chapter = { ...input, parentId: input.parentId ?? null, id: randomUUID(), shortName: input.name, color: '#648c5f', icon: 'Leaf' }
     db.prepare('INSERT INTO chapters(id,body) VALUES (?,?)').run(chapter.id, JSON.stringify(chapter))
     res.status(201).json(chapter)
   })
@@ -258,7 +267,9 @@ export function createApp(options: AppOptions = {}) {
     const input = parse(chapterSchema, req.body)
     const previous = readChapters(db).find(c => c.id === req.params.id)
     if (!previous) throw new ApiError(404, 'Chapitre introuvable.')
-    const chapter = { ...previous, ...input, shortName: input.name }
+    const parentId = input.parentId === undefined ? previous.parentId ?? null : input.parentId
+    validateParent(parentId, previous.id)
+    const chapter = { ...previous, ...input, parentId, shortName: input.name }
     db.prepare('UPDATE chapters SET body=? WHERE id=?').run(JSON.stringify(chapter), chapter.id)
     res.json(chapter)
   })
@@ -285,7 +296,8 @@ export function createApp(options: AppOptions = {}) {
     return q
   }
   function validatedQuestion(input: unknown, actor: User, previous?: Question) {
-    const q = parse(questionSchema, input)
+    const value = input && typeof input === 'object' && !Array.isArray(input) && !Object.hasOwn(input, 'schoolYear') && previous ? { ...input, schoolYear: previous.schoolYear ?? 'both' } : input
+    const q = parse(questionSchema, value)
     if (!readChapters(db).some(c => c.id === q.chapterId)) throw new ApiError(400, 'Chapitre inconnu.')
     if (new Set(q.options.map(o => o.toLowerCase())).size !== 4) throw new ApiError(400, 'Les quatre propositions doivent être différentes.')
     if (q.image && !/^\/uploads\/[a-f0-9-]+\.(png|jpg|gif|webp)$/.test(q.image) && !['/illustrations/cell.svg', '/illustrations/leaf.svg', '/illustrations/subduction.svg'].includes(q.image)) throw new ApiError(400, 'Importez l’image avant de l’associer à la question.')
@@ -322,8 +334,10 @@ export function createApp(options: AppOptions = {}) {
     res.status(201).json({ imported: entries.length })
   })
   api.get('/questions', roles('admin', 'contributor'), (req, res) => {
+    const schoolYear = parse(z.enum(['all','BCPST1','BCPST2']).default('all'), req.query.schoolYear)
+    const chapterIds = req.query.chapterId ? selectedChapterIds(readChapters(db), [String(req.query.chapterId)]) : null
     const search = String(req.query.search ?? '').toLocaleLowerCase('fr')
-    res.json(readQuestions(db).filter(q => (userOf(res).role === 'admin' || q.authorId === userOf(res).id) && (!req.query.status || q.status === req.query.status) && (!req.query.chapterId || q.chapterId === req.query.chapterId) && (!search || `${q.prompt} ${q.explanation}`.toLocaleLowerCase('fr').includes(search))))
+    res.json(readQuestions(db).filter(q => (userOf(res).role === 'admin' || q.authorId === userOf(res).id) && (!req.query.status || q.status === req.query.status) && (!chapterIds || chapterIds.includes(q.chapterId)) && matchesSchoolYear(q.schoolYear, schoolYear) && (!search || `${q.prompt} ${q.explanation}`.toLocaleLowerCase('fr').includes(search))))
   })
   api.post('/questions', roles('admin', 'contributor'), (req, res) => {
     const input = validatedQuestion(req.body, userOf(res))
@@ -393,6 +407,7 @@ export function createApp(options: AppOptions = {}) {
     const chapters = readChapters(db)
     if (!config.chapterIds.length) config.chapterIds = chapters.map(c => c.id)
     if (new Set(config.chapterIds).size !== config.chapterIds.length || config.chapterIds.some(id => !chapters.some(c => c.id === id))) throw new ApiError(400, 'Sélection de chapitres invalide.')
+    config.chapterIds = selectedChapterIds(chapters, config.chapterIds)
     return config
   }
   api.post('/games/solo', (req, res) => res.status(201).json(gameState(games.create(userOf(res), 'solo', configOf(req.body)), userOf(res).id)))

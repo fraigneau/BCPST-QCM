@@ -2,13 +2,14 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { Upload, X } from './icons'
-import type { Chapter, Difficulty } from '../../shared/types'
+import type { Chapter, SchoolYear, Difficulty } from '../../shared/types'
+import { chapterLabel, orderedChapters, schoolYears } from '../../shared/curriculum'
 import type { QuestionImportPlan } from '../services/question-import'
 import { post, sessionGeneration } from '../services/api'
 import { RequestError } from '../services/session-service'
 import { notify } from '../services/feedback'
 
-const props = defineProps<{ chapters: Chapter[]; activeChapterId?: string; disabled?: boolean }>()
+const props = defineProps<{ chapters: Chapter[]; activeChapterId?: string; activeSchoolYear?: SchoolYear; disabled?: boolean }>()
 const emit = defineEmits<{ imported: [] }>()
 const input = ref<HTMLInputElement | null>(null)
 const dialog = ref<HTMLDialogElement | null>(null)
@@ -16,6 +17,7 @@ const plan = ref<QuestionImportPlan | null>(null)
 const filename = ref('')
 const selected = ref<number[]>([])
 const mapping = ref<Record<string, string>>({})
+const schoolYear = ref<SchoolYear>('both')
 const difficulty = ref<Difficulty>('medium')
 const skippedAccepted = ref(false)
 const busy = ref(false)
@@ -55,6 +57,7 @@ async function readFile(event: Event) {
     selected.value = result.rows.filter(row => row.question && !row.error).map(row => row.index)
     skippedAccepted.value = false
     difficulty.value = 'medium'
+    schoolYear.value = props.activeSchoolYear ?? 'both'
     mapping.value = Object.fromEntries(categories.value.map(category => {
       const last = category.split('/').filter(Boolean).at(-1) ?? ''
       const matches = props.chapters.filter(chapter => last && (label(chapter.name) === label(last) || label(chapter.shortName) === label(last)))
@@ -75,7 +78,7 @@ async function confirm() {
   try {
     ensureCurrent()
     const { importPayload } = await import('../services/question-import')
-    importPayload(plan.value, selected.value, mapping.value, difficulty.value, props.chapters)
+    importPayload(plan.value, selected.value, mapping.value, difficulty.value, props.chapters, schoolYear.value)
     const images = selectedRows.value.filter(row => row.imageDataUrl && !row.uploadedImage)
     for (const [index, row] of images.entries()) {
       ensureCurrent()
@@ -85,7 +88,7 @@ async function confirm() {
       row.uploadedImage = result.url
     }
     ensureCurrent()
-    const questions = importPayload(plan.value, selected.value, mapping.value, difficulty.value, props.chapters)
+    const questions = importPayload(plan.value, selected.value, mapping.value, difficulty.value, props.chapters, schoolYear.value)
     progress.value = 'Enregistrement des brouillons…'
     submitted = true
     const result = await post<{ imported: number }>('/questions/import', { questions })
@@ -116,8 +119,8 @@ onBeforeUnmount(() => { disposed = true })
           <p class="muted">Les questions seront enregistrées en brouillon, sans publication automatique.</p>
           <template v-if="plan.format === 'moodle'">
             <p class="import-notice">XML Moodle / Pronote : import en QCM solo. La mise en page est convertie en texte. Le barème du jeu remplace les pondérations d’origine : toutes les bonnes réponses sont exigées, sans points partiels. Les variantes de défi se préparent ensuite depuis les questions solo.</p>
-            <label class="field">Niveau à attribuer<select v-model="difficulty" class="select" :disabled="busy"><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label>
-            <fieldset class="category-mapping"><legend>Chapitres de destination</legend><label v-for="category in categories" :key="category" class="field">{{ category || 'Sans catégorie dans le fichier' }}<select v-model="mapping[category]" class="select" :disabled="busy" :aria-label="`Chapitre pour ${category || 'Sans catégorie'}`"><option value="" disabled>Choisir un chapitre</option><option v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">{{ chapter.name }}</option></select></label></fieldset>
+            <label class="field">Année BCPST<select v-model="schoolYear" class="select" :disabled="busy"><option v-for="year in schoolYears" :key="year.value" :value="year.value">{{ year.label }}</option></select></label><label class="field">Niveau à attribuer<select v-model="difficulty" class="select" :disabled="busy"><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label>
+            <fieldset class="category-mapping"><legend>Chapitres de destination</legend><label v-for="category in categories" :key="category" class="field">{{ category || 'Sans catégorie dans le fichier' }}<select v-model="mapping[category]" class="select" :disabled="busy" :aria-label="`Chapitre pour ${category || 'Sans catégorie'}`"><option value="" disabled>Choisir un chapitre</option><option v-for="chapter in orderedChapters(chapters)" :key="chapter.id" :value="chapter.id">{{ chapterLabel(chapters, chapter.id) }}</option></select></label></fieldset>
           </template>
           <p v-else class="import-notice">JSON natif : chapitres et liens entre QCM solo et variantes sont conservés. Les illustrations référencées doivent déjà être accessibles dans cette banque.</p>
           <ul class="import-rows">

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowRight } from './icons'
+import { selectedChapterIds } from '../../shared/curriculum'
 import type { Chapter, Question } from '../../shared/types'
 
-const props = defineProps<{ chapters: Chapter[]; questions: Question[] }>()
+const props = defineProps<{ chapters: Chapter[]; questions: Question[]; parentId?: string }>()
 const emit = defineEmits<{ open: [chapterId: string] }>()
 
 const folders = computed(() => {
@@ -16,7 +17,12 @@ const folders = computed(() => {
     if (question.status === 'pending') count.pending++
     counts.set(question.chapterId, count)
   }
-  return props.chapters.map(chapter => ({ chapter, ...(counts.get(chapter.id) || { total: 0, published: 0, pending: 0, solo: 0, challenge: 0 }) }))
+  return props.chapters.filter(chapter => (chapter.parentId ?? undefined) === props.parentId).map(chapter => {
+    const ids = selectedChapterIds(props.chapters, [chapter.id])
+    const count = { total: 0, published: 0, pending: 0, solo: 0, challenge: 0 }
+    for (const id of ids) { const own = counts.get(id); if (own) for (const key of Object.keys(count) as (keyof typeof count)[]) count[key] += own[key] }
+    return { chapter, ...count }
+  })
 })
 
 function folderLabel(folder: typeof folders.value[number]) {

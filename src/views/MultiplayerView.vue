@@ -2,18 +2,22 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Check, ChevronDown, Plus, Users } from '../components/icons'
-import type { Difficulty, GameState } from '../../shared/types'
+import { chapterLabel, orderedChapters, selectedChapterIds, chapterCount } from '../../shared/curriculum'
+import type { SchoolYearFilter, Difficulty, GameState } from '../../shared/types'
 import { backendMode, post, session } from '../services/api'
 
 const router = useRouter()
 const code = ref('')
 const selected = ref<string[]>([])
+const schoolYear = ref<SchoolYearFilter>('all')
 const difficulty = ref<Difficulty | 'all'>('all')
 const count = ref(5)
 const busy = ref('')
 const error = ref('')
 const chapters = computed(() => session.bootstrap?.chapters || [])
-const available = computed(() => chapters.value.filter(chapter => !selected.value.length || selected.value.includes(chapter.id)).reduce((total, chapter) => total + (session.bootstrap?.challengeCounts?.[chapter.id] ?? 0), 0))
+const chapterChoices = computed(() => orderedChapters(chapters.value))
+const yearCounts = computed(() => schoolYear.value === 'all' ? (session.bootstrap?.challengeCounts ?? {}) : (session.bootstrap?.challengeCountsByYear?.[schoolYear.value] ?? {}))
+const available = computed(() => selectedChapterIds(chapters.value, selected.value).reduce((total, id) => total + (yearCounts.value[id] ?? 0), 0))
 const configuration = computed(() => `${count.value} questions · ${selected.value.length ? `${selected.value.length} chapitre${selected.value.length > 1 ? 's' : ''}` : 'Tous les chapitres'}`)
 function normalizeCode(event: Event) {
   const input = event.target as HTMLInputElement
@@ -26,7 +30,7 @@ async function enter(action: 'create' | 'join') {
   busy.value = action
   error.value = ''
   try {
-    const game = await post<GameState>(action === 'create' ? '/rooms' : '/rooms/join', action === 'create' ? { chapterIds: selected.value, difficulty: difficulty.value, count: count.value } : { code: code.value })
+    const game = await post<GameState>(action === 'create' ? '/rooms' : '/rooms/join', action === 'create' ? { schoolYear: schoolYear.value, chapterIds: selected.value, difficulty: difficulty.value, count: count.value } : { code: code.value })
     sessionStorage.setItem('herbier-active-game', game.id)
     await router.push(`/game/${game.id}`)
   } catch (cause) { error.value = (cause as Error).message }
@@ -54,7 +58,7 @@ async function enter(action: 'create' | 'join') {
         <details class="room-settings">
           <summary><span>Paramètres<small>{{ configuration }}</small></span><ChevronDown :size="19" /></summary>
           <div class="settings-content">
-            <fieldset><legend>Chapitres</legend><div class="chapter-choices"><button type="button" :class="{ chosen: !selected.length }" :aria-pressed="!selected.length" @click="selected = []">Tous<Check v-if="!selected.length" :size="16" /></button><button v-for="chapter in chapters" :key="chapter.id" type="button" :class="{ chosen: selected.includes(chapter.id) }" :aria-pressed="selected.includes(chapter.id)" @click="toggle(chapter.id)">{{ chapter.shortName }} · {{ session.bootstrap?.challengeCounts?.[chapter.id] ?? 0 }} QCS<Check v-if="selected.includes(chapter.id)" :size="16" /></button></div></fieldset>
+            <label>Année BCPST<select v-model="schoolYear" class="select" aria-label="Année BCPST"><option value="all">Toutes les années</option><option value="BCPST1">BCPST1</option><option value="BCPST2">BCPST2</option></select></label><p class="field-help">Les questions communes sont incluses dans chaque année.</p><fieldset><legend>Chapitres</legend><div class="chapter-choices"><button type="button" :class="{ chosen: !selected.length }" :aria-pressed="!selected.length" @click="selected = []">Tous<Check v-if="!selected.length" :size="16" /></button><button v-for="chapter in chapterChoices" :key="chapter.id" type="button" :class="{ chosen: selected.includes(chapter.id) }" :aria-pressed="selected.includes(chapter.id)" @click="toggle(chapter.id)">{{ chapterLabel(chapters, chapter.id) }} · {{ chapterCount(chapters, yearCounts, chapter.id) }} QCS<Check v-if="selected.includes(chapter.id)" :size="16" /></button></div></fieldset>
             <div class="setting-fields"><label>Difficulté<select v-model="difficulty"><option value="all">Tous les niveaux</option><option value="easy">Facile</option><option value="medium">Intermédiaire</option><option value="hard">Difficile</option></select></label><label>Questions<select v-model="count"><option :value="5">5 questions</option><option :value="10">10 questions</option><option :value="15">15 questions</option></select></label></div>
           </div>
         </details>

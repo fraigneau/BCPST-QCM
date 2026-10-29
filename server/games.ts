@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { randomInt, randomUUID } from 'node:crypto'
-import type { AnswerResult, Difficulty, GameState, Question, User } from '../shared/types.ts'
+import { matchesSchoolYear } from '../shared/curriculum.ts'
+import type { SchoolYearFilter, AnswerResult, Difficulty, GameState, Question, User } from '../shared/types.ts'
 import { readQuestions, readVisibleAnswers, playedQuestionSources } from './database.ts'
 
 export class ApiError extends Error {
@@ -9,6 +10,7 @@ export class ApiError extends Error {
 }
 
 export interface StoredGame {
+  schoolYear?: SchoolYearFilter
   id: string
   mode: 'solo' | 'multi'
   code?: string
@@ -51,8 +53,8 @@ export class Games {
     if (!game.players.some(p => p.id === userId)) throw new ApiError(403, 'Vous ne participez pas à cette partie.')
   }
 
-  create(user: User, mode: 'solo' | 'multi', config: { chapterIds: string[]; difficulty: 'all' | Difficulty; count: number; mistakesOnly?: boolean }) {
-    let pool = readQuestions(this.db).filter(q => q.status === 'published' && (q.usage ?? 'solo') === (mode === 'solo' ? 'solo' : 'challenge') && (mode !== 'multi' || q.correctAnswers.length === 1) && config.chapterIds.includes(q.chapterId) && (config.difficulty === 'all' || q.difficulty === config.difficulty))
+  create(user: User, mode: 'solo' | 'multi', config: { schoolYear?: SchoolYearFilter; chapterIds: string[]; difficulty: 'all' | Difficulty; count: number; mistakesOnly?: boolean }) {
+    let pool = readQuestions(this.db).filter(q => q.status === 'published' && matchesSchoolYear(q.schoolYear, config.schoolYear) && (q.usage ?? 'solo') === (mode === 'solo' ? 'solo' : 'challenge') && (mode !== 'multi' || q.correctAnswers.length === 1) && config.chapterIds.includes(q.chapterId) && (config.difficulty === 'all' || q.difficulty === config.difficulty))
     if (config.mistakesOnly) {
       const latest = new Map<string, boolean>()
       const sources = playedQuestionSources(this.db)
@@ -66,7 +68,7 @@ export class Games {
       ;[pool[i], pool[j]] = [pool[j]!, pool[i]!]
     }
     const game: StoredGame = {
-      id: randomUUID(), mode, status: mode === 'solo' ? 'playing' : 'waiting', phase: 'question',
+      id: randomUUID(), schoolYear: config.schoolYear ?? 'all', mode, status: mode === 'solo' ? 'playing' : 'waiting', phase: 'question',
       chapterIds: config.chapterIds, hostId: user.id, players: [{ id: user.id, name: user.name }],
       questions: pool.slice(0, config.count), questionIndex: 0, startedAt: null, deadline: null,
       correctionUntil: null, createdAt: new Date().toISOString(),
@@ -190,11 +192,11 @@ export class Games {
     const rows = this.answerRows(game.id)
     const mine = rows.filter(r => r.userId === userId)
     const q = game.status === 'waiting' || game.status === 'finished' ? null : game.questions[game.questionIndex]!
-    const question = q ? { usage: q.usage ?? 'solo', id: q.id, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, image: q.image, status: q.status, createdAt: q.createdAt, updatedAt: q.updatedAt } : null
+    const question = q ? { schoolYear: q.schoolYear ?? 'both', usage: q.usage ?? 'solo', id: q.id, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, image: q.image, status: q.status, createdAt: q.createdAt, updatedAt: q.updatedAt } : null
     const current = mine.find(r => r.index === game.questionIndex)?.result ?? null
     const reveal = game.mode === 'solo' || game.phase === 'correction' || game.status === 'finished'
     return {
-      id: game.id, mode: game.mode, code: game.code, status: game.status, phase: game.phase,
+      schoolYear: game.schoolYear ?? 'all', id: game.id, mode: game.mode, code: game.code, status: game.status, phase: game.phase,
       chapterIds: game.chapterIds, hostId: game.hostId, questionIndex: game.questionIndex, totalQuestions: game.questions.length,
       question, deadline: game.mode === 'solo' ? null : game.phase === 'correction' ? game.correctionUntil : game.deadline, serverNow: Date.now(),
       players: game.players.map(p => ({ ...p, score: rows.filter(r => r.userId === p.id).reduce((n, r) => n + (game.mode === 'multi' && game.phase === 'question' && r.index === game.questionIndex ? 0 : r.result.points), 0), answered: rows.some(r => r.userId === p.id && r.index === game.questionIndex), connected: connected(p.id) })),
