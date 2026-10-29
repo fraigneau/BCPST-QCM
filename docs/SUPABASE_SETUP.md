@@ -48,6 +48,8 @@ Un compte administrateur personnel a été désigné dans le projet de développ
 
 Activer le fournisseur e-mail et vérifier les réglages de confirmation. Une inscription depuis l’application crée un élève. Si une confirmation est exigée, l’interface affiche une invitation à consulter sa boîte mail et attend une vraie session avant d’ouvrir l’espace.
 
+Pour ce projet d’étude, la confirmation peut être désactivée dans **Authentication → Sign In / Providers → Email → Confirm email**, puis enregistrée. Ce réglage se fait dans Supabase, pas dans le frontend : une PR ou un déploiement Pages ne le change pas. Une fois désactivé, une nouvelle inscription ouvre directement une session ; l’application accepte déjà ce cas. Les adresses ne sont alors pas vérifiées. Ne pas supprimer l’écran de confirmation pour contourner un réglage serveur encore actif. Voir la [configuration Auth](https://supabase.com/docs/guides/auth/general-configuration).
+
 Le contrôle Supabase du 22 octobre signale que la protection contre les mots de passe compromis est désactivée. Son activation se règle dans Auth selon les possibilités du forfait ; voir la [protection des mots de passe Supabase](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). Aucun autre avertissement de sécurité SQL n’a été remonté lors de ce contrôle.
 
 Pendant la préparation, garder `http://localhost:5173` comme origine locale autorisée et ajouter `http://localhost:4173` pour le build preview. Avant publication, la **Site URL** doit devenir l’origine HTTPS finale. Ajouter dans **Redirect URLs** les URL de retour exactes des environnements réellement utilisés. Les previews ne doivent pas autoriser tous les domaines `pages.dev`.

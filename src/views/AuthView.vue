@@ -65,7 +65,7 @@ function switchMode() {
       <div class="auth-form-wrap">
         <span v-if="session.authMode === 'local'" class="badge">Mode démonstration</span>
         <h1>{{ confirmation ? 'Vérifie tes e-mails' : register ? 'Créer mon compte' : 'Content de te retrouver.' }}</h1>
-        <p class="muted">{{ confirmation ? 'Confirme ton adresse pour commencer.' : register ? 'Pour réviser en solo et jouer ensemble.' : 'Connecte-toi pour reprendre tes révisions.' }}</p>
+        <p class="muted">{{ confirmation ? 'Confirme ton adresse pour commencer.' : register ? 'Pour réviser en solo et jouer ensemble.' : 'Connecte-toi avec ton e-mail ou ton nom d’utilisateur.' }}</p>
         <div v-if="confirmation" class="confirmation-note" role="status">
           <h3>Vérifiez votre boîte mail</h3>
           <p>Si votre inscription est acceptée, un lien de confirmation vous sera envoyé à <strong>{{ confirmation }}</strong>. Consultez aussi vos courriers indésirables.</p>
@@ -74,9 +74,9 @@ function switchMode() {
         <template v-else>
           <form class="stack" :aria-busy="busy" @submit.prevent="submit()">
             <label v-if="register" class="field">Ton nom<input v-model="name" class="input" name="name" autocomplete="name" minlength="2" maxlength="60" :disabled="busy" required placeholder="Camille Laurent" /></label>
-            <label v-if="register" class="field">Ton pseudo<input v-model="username" class="input" name="username" type="text" autocomplete="username" autocapitalize="none" :spellcheck="false" minlength="3" maxlength="24" :disabled="busy" aria-describedby="signup-username-help" required placeholder="camille.bcpst" /><small id="signup-username-help" class="username-help">3 à 24 caractères : lettres sans accent, chiffres, point, tiret ou _. Sans espace. Commence par une lettre ou un chiffre.</small></label>
+            <label v-if="register" class="field">Ton nom d’utilisateur<input v-model="username" class="input" name="username" type="text" autocomplete="username" autocapitalize="none" :spellcheck="false" minlength="3" maxlength="24" :disabled="busy" aria-describedby="signup-username-help" required placeholder="camille.bcpst" /><small id="signup-username-help" class="username-help">3 à 24 caractères : lettres sans accent, chiffres, point, tiret ou _. Sans espace. Commence par une lettre ou un chiffre.</small></label>
             <label v-if="register" class="field">Adresse e-mail<input v-model="email" class="input" name="email" type="email" autocomplete="email" autocapitalize="none" :spellcheck="false" :disabled="busy" required placeholder="vous@exemple.fr" /></label>
-            <label v-else class="field">Pseudo ou adresse e-mail<input v-model="identifier" class="input" name="username" type="text" autocomplete="username" autocapitalize="none" :spellcheck="false" :disabled="busy" required placeholder="camille.bcpst ou vous@exemple.fr" /></label>
+            <label v-else class="field">E-mail ou nom d’utilisateur<input v-model="identifier" class="input" name="username" type="text" autocomplete="username" autocapitalize="none" :spellcheck="false" :disabled="busy" required placeholder="vous@exemple.fr ou camille.bcpst" /></label>
             <label class="field">Mot de passe<span class="password-field"><input v-model="password" class="input" name="password" :type="showPassword ? 'text' : 'password'" :autocomplete="register ? 'new-password' : 'current-password'" :minlength="register ? 10 : 1" :disabled="busy" required :placeholder="register ? '10 caractères minimum' : 'Votre mot de passe'" /><button type="button" class="icon-button" :disabled="busy" :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'" @click="showPassword = !showPassword"><component :is="showPassword ? EyeOff : Eye" :size="18" /></button></span></label>
             <p v-if="error" class="form-error" role="alert">{{ error }}</p>
             <button class="button auth-submit" :disabled="busy">{{ busy ? register ? 'Création du compte…' : 'Connexion en cours…' : register ? 'Créer mon compte' : 'Se connecter' }}<ArrowRight :size="18" /></button>
