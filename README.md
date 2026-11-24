@@ -35,7 +35,7 @@ Ouvrir <http://localhost:5173>. Vite sert uniquement l’interface : le navigate
 La connexion accepte un pseudo unique ou l’adresse e-mail, avec le même mot de passe. L’inscription demande un pseudo de 3 à 24 caractères et conserve une adresse e-mail pour la confirmation et la récupération. Le pseudo est modifiable dans « Moi ». En cloud, cette fonctionnalité exige la migration et la fonction Supabase décrites dans [USERNAME_LOGIN.md](docs/USERNAME_LOGIN.md) ; publier le frontend seul ne les installe pas. La connexion e-mail existante continue de passer directement par Supabase Auth.
 
 - **Révision solo** : chapitres et difficulté au choix, sans chronomètre, 100 points par bonne réponse, correction expliquée et progression à votre rythme.
-- **Défi multijoueur** : salon privé et code, mêmes questions, 30 secondes pour répondre, un clic envoie immédiatement le choix, 100 points et jusqu’à 50 points de rapidité, puis correction commune de 5 secondes.
+- **Défi multijoueur** : salon privé et code, mêmes questions, 30 secondes pour répondre, 100 points et jusqu’à 50 points de rapidité, puis correction commune de 5 secondes.
 - **Progression** : erreurs à revoir, historique et classements par chapitre, y compris les élèves sans point.
 - **Contributions** : quatre propositions, réponses multiples, images, brouillons et validation administrateur avant publication.
 
@@ -101,6 +101,8 @@ En cloud, les données sont dans PostgreSQL et les images dans le bucket privé 
 En local, SQLite et les images sont dans `data/`. Sauvegarder ce dossier avec le serveur arrêté. Les anciennes données SQLite ne sont pas automatiquement transférées dans Supabase : comptes, mots de passe, sessions, parties et scores locaux restent locaux. Les mots de passe ne se migrent jamais dans les fichiers du projet. L’export JSON couvre les questions, pas les fichiers images ni les résultats.
 
 La banque de 50 questions fournie pour les essais doit être relue par un enseignant avant usage pédagogique officiel. Son initialisation cloud est une migration séparée, avec un auteur administrateur ; le statut publié facilite les tests et ne remplace pas une validation scientifique.
+
+En défi, un clic sur une proposition envoie immédiatement la réponse : le bouton de validation est réservé au solo. Le bonus utilise le temps de réception calculé par le serveur.
 
 ## Guides
 

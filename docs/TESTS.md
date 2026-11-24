@@ -1,5 +1,10 @@
 # Vérifier QCM BCPST
 
+## Envoi immédiat au clic en défi
+
+Les 108 tests Node passent, avec le build et `pages:check`. Le rendu vérifie l’absence du bouton de validation en multijoueur et sa conservation en solo. Un parcours Chromium local mobile crée un salon à deux joueurs, clique une réponse, retarde la requête pour vérifier le verrouillage des choix et tente un clic supplémentaire pendant l’envoi : un seul POST est envoyé. Le résultat serveur confirme la réponse correcte, le temps reçu et les points calculés selon ce temps. Le même parcours vérifie que deux choix solo restent possibles sans envoi avant confirmation. Aucune erreur JavaScript n’est observée. Aucun temps, point ou score n’est fourni par le navigateur. Aucun déploiement ni test Supabase authentifié effectué pour cette PR.
+
+
 ## Commandes locales
 
 ```sh
@@ -138,7 +143,3 @@ Le 29 octobre 2026, `school_years_subchapters` est appliquée au projet réel so
 L’éditeur et la modération masquent la correction pédagogique des QCS. Pour garder la compatibilité avec les banques et RPC existantes, l’enregistrement reprend la correction de la source solo ; aucune correction supplémentaire n’est demandée. Le jeu multijoueur affiche le résultat, la bonne réponse, les points et le compte à rebours, sans paragraphe pédagogique. Le solo conserve son explication. Aucune migration n’est nécessaire.
 
 Les 108 tests Node passent, ainsi que le build et `pages:check`. Le test de rendu vérifie les bonnes réponses et le compte à rebours du défi, l’absence d’explication pédagogique et la conservation de celle-ci en solo. Un parcours Chromium local à 390 px vérifie la soumission d’une variante et d’un QCS créé manuellement sans champ de correction, le maintien du champ en solo, et l’absence d’erreur JavaScript ou de débordement horizontal. Aucun parcours Supabase authentifié ni déploiement n’a été réalisé.
-
-## Envoi immédiat au clic en défi
-
-Les 108 tests Node passent, avec le build et `pages:check`. Le rendu vérifie l’absence du bouton de validation en multijoueur et sa conservation en solo. Un parcours Chromium local mobile crée un salon à deux joueurs, clique une réponse, retarde la requête pour vérifier le verrouillage des choix et tente un clic supplémentaire pendant l’envoi : un seul POST est envoyé. Le résultat serveur confirme la réponse correcte, le temps reçu et les points calculés selon ce temps. Le même parcours vérifie que deux choix solo restent possibles sans envoi avant confirmation. Aucune erreur JavaScript n’est observée. Aucun temps, point ou score n’est fourni par le navigateur. Aucun déploiement ni test Supabase authentifié effectué pour cette PR.
