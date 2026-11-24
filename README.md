@@ -102,6 +102,8 @@ En local, SQLite et les images sont dans `data/`. Sauvegarder ce dossier avec le
 
 La banque de 50 questions fournie pour les essais doit être relue par un enseignant avant usage pédagogique officiel. Son initialisation cloud est une migration séparée, avec un auteur administrateur ; le statut publié facilite les tests et ne remplace pas une validation scientifique.
 
+En défi, un clic sur une proposition envoie immédiatement la réponse : le bouton de validation est réservé au solo. Le bonus utilise le temps de réception calculé par le serveur.
+
 ## Guides
 
 - [Architecture et séparation des backends](docs/ARCHITECTURE.md)

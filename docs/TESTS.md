@@ -1,5 +1,10 @@
 # Vérifier QCM BCPST
 
+## Envoi immédiat au clic en défi
+
+Les 108 tests Node passent, avec le build et `pages:check`. Le rendu vérifie l’absence du bouton de validation en multijoueur et sa conservation en solo. Un parcours Chromium local mobile crée un salon à deux joueurs, clique une réponse, retarde la requête pour vérifier le verrouillage des choix et tente un clic supplémentaire pendant l’envoi : un seul POST est envoyé. Le résultat serveur confirme la réponse correcte, le temps reçu et les points calculés selon ce temps. Le même parcours vérifie que deux choix solo restent possibles sans envoi avant confirmation. Aucune erreur JavaScript n’est observée. Aucun temps, point ou score n’est fourni par le navigateur. Aucun déploiement ni test Supabase authentifié effectué pour cette PR.
+
+
 ## Commandes locales
 
 ```sh

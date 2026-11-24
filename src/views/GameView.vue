@@ -54,8 +54,8 @@ async function load() {
   finally { loadingState = false; if (!disposed) ready.value = true }
 }
 function toggle(index: number) {
-  if (answered.value || busy.value || (game.value?.mode === 'multi' && remaining.value <= 0)) return
-  if (game.value?.mode === 'multi' && game.value.question?.usage === 'challenge') { selected.value = [index]; return }
+  if (!game.value || game.value.status !== 'playing' || game.value.phase !== 'question' || answered.value || busy.value || (game.value.mode === 'multi' && remaining.value <= 0)) return
+  if (game.value.mode === 'multi') { selected.value = [index]; void action('answer'); return }
   selected.value = selected.value.includes(index) ? selected.value.filter(value => value !== index) : [...selected.value, index]
 }
 async function action(name: 'answer' | 'next' | 'start') {

@@ -80,9 +80,9 @@ watch(() => props.game.result, async (result, previous) => {
           </button>
         </div>
 
-        <div v-if="!answered && game.phase === 'question'" class="answer-submit">
-          <button class="button confirm-answer" :disabled="!selected.length || busy || (competitive && remaining <= 0)" @click="emit('submit')">{{ busy ? 'Envoi…' : 'Valider ma réponse' }}<ArrowRight :size="19" /></button>
-          <p aria-live="polite">{{ selected.length ? `${selected.length} réponse${selected.length > 1 ? 's' : ''} sélectionnée${selected.length > 1 ? 's' : ''}` : competitive ? '100 points + un bonus de rapidité.' : 'Prends ton temps, chaque réponse compte.' }}</p>
+        <div v-if="!answered && game.phase === 'question' && (!competitive || remaining > 0)" class="answer-submit">
+          <button v-if="!competitive" class="button confirm-answer" :disabled="!selected.length || busy" @click="emit('submit')">{{ busy ? 'Envoi…' : 'Valider ma réponse' }}<ArrowRight :size="19" /></button>
+          <p aria-live="polite">{{ competitive ? (busy ? 'Envoi de ta réponse…' : 'Clique sur une réponse : elle est envoyée immédiatement.') : selected.length ? `${selected.length} réponse${selected.length > 1 ? 's' : ''} sélectionnée${selected.length > 1 ? 's' : ''}` : 'Prends ton temps, chaque réponse compte.' }}</p>
         </div>
         <div v-else-if="!game.result" class="answer-recorded" role="status"><CheckCircle2 :size="21" /><span>{{ answered ? 'C’est enregistré ! Les autres jouent encore…' : 'Temps écoulé. La correction arrive…' }}</span></div>
       </div>
