@@ -254,6 +254,20 @@ test('la correction affiche les bonnes réponses et le passage manuel en solo', 
   assert.ok(!html.includes('Prochaine question'))
 })
 
+test('le défi affiche le résultat et la bonne réponse sans correction pédagogique', async () => {
+  const game = boardState('multi')
+  game.phase = 'correction'
+  game.players[0]!.answered = true
+  game.result = { questionId: 'q-board', selected: [2], correctAnswers: [0], explanation: 'Cette correction pédagogique reste réservée au solo.', correct: false, points: 0, elapsedMs: 2000 }
+  const html = await renderBoard(game, 3, [2])
+  assert.match(html, /Bonne réponse/)
+  assert.match(html, /Ce n’est pas la bonne réponse/)
+  assert.match(html, /Prochaine question/)
+  assert.ok(!html.includes(game.result.explanation))
+  assert.ok(!html.includes('correction-explanation'))
+  assert.ok(!html.includes('Prenons le temps de comprendre'))
+})
+
 test('la route de jeu réserve l’écran à la partie et masque les navigations', async () => {
   configure('student')
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/game/:id', name: 'game', component: views.get('Game')! }] })

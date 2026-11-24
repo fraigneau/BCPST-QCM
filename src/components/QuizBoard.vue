@@ -89,8 +89,8 @@ watch(() => props.game.result, async (result, previous) => {
     </section>
 
     <section v-if="game.result" ref="correction" class="round-correction" :class="{ 'needs-review': !game.result.correct }" aria-live="polite" aria-labelledby="correction-title">
-      <div class="correction-title"><span class="correction-symbol"><component :is="game.result.correct ? Check : Lightbulb" :size="24" /></span><div><p>{{ game.result.correct ? 'Bien joué !' : 'On retient pour la prochaine fois' }}</p><h2 id="correction-title">{{ game.result.correct ? 'Tu as tout bon.' : game.result.selected.length ? 'Prenons le temps de comprendre.' : 'Le temps s’est écoulé.' }}</h2></div><span class="round-points">+{{ game.result.points }}<small>points</small></span></div>
-      <p class="correction-explanation">{{ game.result.explanation }}</p>
+      <div class="correction-title"><span class="correction-symbol"><component :is="game.result.correct ? Check : Lightbulb" :size="24" /></span><div><p>{{ game.result.correct ? 'Bien joué !' : 'On retient pour la prochaine fois' }}</p><h2 id="correction-title">{{ game.result.correct ? 'Tu as tout bon.' : game.result.selected.length ? (competitive ? 'Ce n’est pas la bonne réponse.' : 'Prenons le temps de comprendre.') : 'Le temps s’est écoulé.' }}</h2></div><span class="round-points">+{{ game.result.points }}<small>points</small></span></div>
+      <p v-if="!competitive" class="correction-explanation">{{ game.result.explanation }}</p>
       <button v-if="!competitive" class="button next-question" :disabled="busy" @click="emit('next')">{{ busy ? 'Chargement…' : game.questionIndex + 1 === game.totalQuestions ? 'Voir mes résultats' : 'Question suivante' }}<ArrowRight :size="19" /></button>
       <p v-else class="next-round"><Clock3 :size="16" />{{ game.questionIndex + 1 === game.totalQuestions ? 'Classement final' : 'Prochaine question' }} dans {{ remaining }} s</p>
     </section>
