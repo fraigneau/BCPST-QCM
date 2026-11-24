@@ -226,6 +226,7 @@ test('les quatre réponses restent sélectionnables en solo avec une échéance 
   assert.equal(options.length, 4)
   assert.ok(options.every(option => !option.includes('disabled')))
   assert.match(html, /Sans chrono/)
+  assert.match(html, /Valider ma réponse/)
   assert.ok(!html.includes('secondes restantes'))
 })
 
@@ -233,8 +234,9 @@ test('le défi multijoueur bloque les choix à expiration du chrono', async () =
   const game = boardState('multi')
   const active = await renderBoard(game, 12, [0, 1])
   assert.match(active, /12 secondes restantes/)
+  assert.ok(!active.includes('Valider ma réponse'))
   assert.equal((active.match(/aria-pressed="true"/g) || []).length, 2)
-  assert.match(active, /2 réponses sélectionnées/)
+  assert.match(active, /elle est envoyée immédiatement/)
   const expired = await renderBoard(game, 0, [0])
   const options = expired.match(/<button[^>]*class="[^"]*answer-tile[^>]*>/g) || []
   assert.equal(options.length, 4)
