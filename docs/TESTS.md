@@ -132,3 +132,9 @@ L’affichage regroupe les enfants sous leur parent dans la bibliothèque, l’a
 ## Recette distante des années et sous-chapitres
 
 Le 29 octobre 2026, `school_years_subchapters` est appliquée au projet réel sous la version `20261029200118`. `0006_school_years_subchapters.sql` réussit dans une transaction annulée. La comparaison avec la sauvegarde préalable confirme 50 questions inchangées hors ajout de l’année commune, 50 corrections et 50 snapshots identiques, ainsi que 9 chapitres conservés. Les trois sous-chapitres désignés ont été rattachés au parent demandé. La RPC bootstrap exécutée sous un rôle authentifié administrateur renvoie les trois liens parent/enfant. Aucun frontend n’est déployé pour cette opération ; un rafraîchissement recharge cette structure dans le frontend déjà publié.
+
+## QCS de défi sans correction pédagogique — 24 novembre 2026
+
+L’éditeur et la modération masquent la correction pédagogique des QCS. Pour garder la compatibilité avec les banques et RPC existantes, l’enregistrement reprend la correction de la source solo ; aucune correction supplémentaire n’est demandée. Le jeu multijoueur affiche le résultat, la bonne réponse, les points et le compte à rebours, sans paragraphe pédagogique. Le solo conserve son explication. Aucune migration n’est nécessaire.
+
+Les 108 tests Node passent, ainsi que le build et `pages:check`. Le test de rendu vérifie les bonnes réponses et le compte à rebours du défi, l’absence d’explication pédagogique et la conservation de celle-ci en solo. Un parcours Chromium local à 390 px vérifie la soumission d’une variante et d’un QCS créé manuellement sans champ de correction, le maintien du champ en solo, et l’absence d’erreur JavaScript ou de débordement horizontal. Aucun parcours Supabase authentifié ni déploiement n’a été réalisé.
