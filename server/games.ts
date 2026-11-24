@@ -124,7 +124,7 @@ export class Games {
     const actual = [...selected].sort()
     const correct = !timeout && expected.length === actual.length && expected.every((v, i) => v === actual[i])
     const bonus = game.mode === 'multi' ? Math.floor(50 * Math.max(0, 1 - elapsedMs / this.duration)) : 0
-    const result: AnswerResult = { questionId: q.id, selected, correctAnswers: q.correctAnswers, explanation: q.explanation, correct, points: correct ? 100 + bonus : 0, elapsedMs }
+    const result: AnswerResult = { questionId: q.id, selected, correctAnswers: q.correctAnswers, correct, points: correct ? 100 + bonus : 0, elapsedMs }
     this.db.prepare('INSERT INTO answers(game_id,user_id,question_index,question_id,chapter_id,prompt,correct,points,body,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(game.id, userId, game.questionIndex, q.id, q.chapterId, q.prompt, correct ? 1 : 0, result.points, JSON.stringify(result), new Date(now).toISOString())
     return result
   }

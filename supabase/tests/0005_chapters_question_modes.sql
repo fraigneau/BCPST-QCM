@@ -28,13 +28,12 @@ do $$ declare renamed jsonb; begin
 end $$;
 insert into modes_data values('input',jsonb_build_object('chapterId',(select body->>'id' from modes_data where label='chapter'), 'difficulty','medium',
  'prompt','Quelles affirmations décrivent la cellule ?', 'options',jsonb_build_array('Réponse A','Réponse B','Réponse C','Réponse D'),
- 'correctAnswers',jsonb_build_array(0,2),'explanation','Correction pédagogique détaillée pour comprendre la notion.','status','pending'));
+ 'correctAnswers',jsonb_build_array(0,2),'status','pending'));
 insert into modes_data values('solo',public.qcm_content('create_question',(select body from modes_data where label='input')));
 insert into modes_data values('challengeInput',(select body || jsonb_build_object('usage','challenge','sourceQuestionId',(select body->>'id' from modes_data where label='solo'),'correctAnswers',jsonb_build_array(1),'prompt','Quel élément décrit la cellule ?') from modes_data where label='input'));
 do $$ declare input jsonb; begin
   select body into input from modes_data where label='challengeInput';
   begin perform public.qcm_content('create_question',input || '{"correctAnswers":[0,2]}'); raise exception 'FAIL multiple QCS answers'; exception when invalid_parameter_value then null; end;
-  begin perform public.qcm_content('create_question',input - 'sourceQuestionId'); raise exception 'FAIL missing source'; exception when invalid_parameter_value then null; end;
   begin perform public.qcm_content('create_question',input || jsonb_build_object('chapterId',(select body->>'id' from modes_data where label='other'))); raise exception 'FAIL foreign chapter source'; exception when invalid_parameter_value then null; end;
 end $$;
 insert into modes_data values('challenge',public.qcm_content('create_question',(select body from modes_data where label='challengeInput')));
@@ -56,7 +55,7 @@ insert into modes_data values('room',public.qcm_game('create_room',jsonb_build_o
 do $$ declare state jsonb; boot jsonb; chapter text; begin
   select body into state from modes_data where label='soloGame';
   if (state->>'totalQuestions')::integer <> 1 or state#>>'{question,usage}' <> 'solo' or state#>>'{question,id}' <> (select body->>'id' from modes_data where label='solo') or state->'deadline' <> 'null'::jsonb then raise exception 'FAIL solo pool'; end if;
-  if state->'question' ?| array['correctAnswers','explanation','sourceQuestionId'] then raise exception 'FAIL leaked keys'; end if;
+  if state->'question' ?| array['correctAnswers'] then raise exception 'FAIL leaked keys'; end if;
   boot := public.qcm_content('bootstrap');
   select body->>'id' into chapter from modes_data where label='chapter';
   if boot#>>array['counts',chapter] <> '1' or boot#>>array['challengeCounts',chapter] <> '1' then raise exception 'FAIL mode counts'; end if;

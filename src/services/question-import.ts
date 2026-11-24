@@ -84,9 +84,8 @@ function validate(question: ImportedQuestion) {
   if (!Array.isArray(question.options) || question.options.length !== 4) throw new Error('Le jeu exige exactement quatre propositions : aucune réponse n’a été ajoutée ou supprimée.')
   if (question.options.some(option => typeof option !== 'string' || !option.trim() || option.length > 1000) || new Set(question.options.map(normalize)).size !== 4) throw new Error('Les quatre propositions doivent être renseignées, distinctes et limitées à 1 000 caractères.')
   if (!Array.isArray(question.correctAnswers) || question.correctAnswers.length < 1 || question.correctAnswers.length > 4 || question.correctAnswers.some(answer => !Number.isInteger(answer) || answer < 0 || answer > 3) || new Set(question.correctAnswers).size !== question.correctAnswers.length) throw new Error('Les indices des bonnes réponses doivent être distincts, entre 0 et 3.')
-  if (typeof question.explanation !== 'string' || question.explanation.trim().length < 10 || question.explanation.length > 10000) throw new Error('La correction doit contenir de 10 à 10 000 caractères.')
   if (!['solo', 'challenge'].includes(question.usage ?? 'solo')) throw new Error('Mode de question invalide.')
-  if (question.usage === 'challenge' && (question.correctAnswers.length !== 1 || !question.sourceQuestionId)) throw new Error('Un QCS de défi doit avoir une bonne réponse et une question solo source.')
+  if (question.usage === 'challenge' && question.correctAnswers.length !== 1) throw new Error('Un QCS de défi doit avoir une seule bonne réponse.')
   if (question.usage !== 'challenge' && question.sourceQuestionId) throw new Error('Une question solo ne peut pas être une variante.')
   if (question.sourceQuestionId != null && (typeof question.sourceQuestionId !== 'string' || question.sourceQuestionId.length > 100)) throw new Error('Question source invalide.')
   if (question.image != null && (typeof question.image !== 'string' || question.image.length > 2048)) throw new Error('Référence d’image invalide.')
@@ -105,7 +104,7 @@ function nativeJson(source: string, chapters: Chapter[]): QuestionImportPlan {
       const q = value as ImportedQuestion
       row.originalId = typeof q.id === 'string' ? q.id : undefined
       row.title = typeof q.prompt === 'string' ? q.prompt.slice(0, 160) : row.title
-      const question: ImportedQuestion = { schoolYear: q.schoolYear ?? 'both', id: q.id, usage: q.usage ?? 'solo', sourceQuestionId: q.sourceQuestionId ?? null, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, correctAnswers: q.correctAnswers, explanation: q.explanation, image: q.image ?? null, status: 'draft' }
+      const question: ImportedQuestion = { schoolYear: q.schoolYear ?? 'both', id: q.id, usage: q.usage ?? 'solo', sourceQuestionId: q.sourceQuestionId ?? null, chapterId: q.chapterId, difficulty: q.difficulty, prompt: q.prompt, options: q.options, correctAnswers: q.correctAnswers, image: q.image ?? null, status: 'draft' }
       validate(question)
       if (!chapters.some(chapter => chapter.id === question.chapterId)) throw new Error('Le chapitre de cette question n’existe pas dans cette banque.')
       if (question.id && ids.has(question.id)) throw new Error('Identifiant dupliqué dans le fichier.')
@@ -168,20 +167,7 @@ function moodle(source: string): QuestionImportPlan {
       if (positives.length && !positives.every(value => value === 100) && Math.abs(positives.reduce((sum, value) => sum + value, 0) - 100) > 0.05) throw new Error('Somme des pondérations positives ambiguë : adapter le barème avant l’import.')
       if (!single) row.warnings.push('Mode unique/multiple absent : bonnes réponses déduites des fractions positives.')
       if (fractions.some(fraction => fraction !== 0 && fraction !== 100)) row.warnings.push('Pondérations converties en réponses exactes : aucun point partiel ni pénalité Moodle.')
-      const feedbackTypes = [['generalfeedback', ''], ['correctfeedback', 'Si la réponse est correcte'], ['partiallycorrectfeedback', 'Si la réponse est partielle'], ['incorrectfeedback', 'Si la réponse est incorrecte']] as const
-      const feedbackElements = [...feedbackTypes.map(([name]) => child(element, name)), ...answers.map(answer => child(answer, 'feedback'))].filter((item): item is Element => !!item)
-      if (feedbackElements.map(field).some(item => item.images.length)) throw new Error('Une illustration de correction ne peut pas être conservée dans le jeu actuel.')
-      const feedback = feedbackTypes.map(([name, title]) => {
-        const value = field(child(element, name)).value
-        return value ? (title ? `${title} — ${value}` : value) : ''
-      })
-      const details = answers.map((answer, index) => {
-        const value = field(child(answer, 'feedback')).value
-        return value ? `${String.fromCharCode(65 + index)} — ${value}` : ''
-      })
-      const explanation = [...feedback, ...details].filter(Boolean).join('\n\n')
-      const question: ImportedQuestion = { schoolYear: 'both', usage: 'solo', sourceQuestionId: null, chapterId: '', difficulty: 'medium', prompt: prompt.value, options: answerFields.map(answer => answer.value), correctAnswers, explanation: explanation.length >= 10 ? explanation : [explanation, 'Correction à compléter après import.'].filter(Boolean).join('\n\n'), image: null, status: 'draft' }
-      if (explanation.length < 10) row.warnings.push('Correction absente ou trop courte : à compléter dans le brouillon avant publication.')
+      const question: ImportedQuestion = { schoolYear: 'both', usage: 'solo', sourceQuestionId: null, chapterId: '', difficulty: 'medium', prompt: prompt.value, options: answerFields.map(answer => answer.value), correctAnswers, image: null, status: 'draft' }
       const imageElement = child(element, 'image')
       const legacyImage = imageElement && !children(imageElement).length ? text(imageElement) : ''
       const references = [...new Set([...prompt.images, ...(legacyImage ? [legacyImage] : [])])]

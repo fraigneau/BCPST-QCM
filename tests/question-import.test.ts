@@ -10,7 +10,7 @@ const basic = `<question type="multichoice"><name><text>Test</text></name><quest
 const parse = (question: string) => parseQuestionImport(`<quiz>${question}</quiz>`, chapters)
 const first = (question: string) => parse(question).rows[0]!
 
-test('XML Moodle/Pronote : catégories, CDATA, HTML, bonnes réponses et corrections sont conservés en brouillons solo', () => {
+test('XML Moodle/Pronote : catégories, CDATA, HTML, bonnes réponses sont conservées en brouillons solo', () => {
   const result = parseQuestionImport('\uFEFF' + fixture, chapters)
   assert.equal(result.format, 'moodle')
   assert.equal(result.rows.length, 2)
@@ -19,14 +19,9 @@ test('XML Moodle/Pronote : catégories, CDATA, HTML, bonnes réponses et correct
   assert.equal(result.rows[1]!.category, 'Chapitre 2 — Organites')
   assert.equal(result.rows[0]!.question!.prompt, 'Quelles structures composent une membrane cellulaire ?')
   assert.deepEqual(result.rows[0]!.question!.correctAnswers, [0, 1])
-  assert.match(result.rows[0]!.question!.explanation, /bicouche lipidique/)
-  assert.match(result.rows[0]!.question!.explanation, /A — Ils forment la bicouche/)
-  assert.match(result.rows[0]!.question!.explanation, /B — Elles remplissent/)
   assert.ok(result.rows[0]!.warnings.some(value => value.includes('Pondérations')))
   assert.equal(result.rows[1]!.question!.usage, 'solo')
   assert.equal(result.rows[1]!.question!.sourceQuestionId, null)
-  assert.match(result.rows[1]!.question!.explanation, /Correction à compléter/)
-  assert.ok(result.rows[1]!.warnings.some(value => value.includes('Correction absente')))
   assert.equal(result.rows[1]!.imageDataUrl, `data:image/png;base64,${png}`)
   const input = importPayload(result, [1, 2], { 'Chapitre 1 — Cellules': 'cell', 'Chapitre 2 — Organites': 'org' }, 'hard', chapters)
   assert.deepEqual(input.map(q => [q.chapterId, q.difficulty, q.status, q.usage]), [['cell', 'hard', 'draft', 'solo'], ['org', 'hard', 'draft', 'solo']])
@@ -94,8 +89,9 @@ test('le contenu HTML importé devient du texte et les indices scientifiques res
   assert.match(row.question!.prompt, /CO_\(2\).*x\^\(2\)/)
   assert.ok(!row.question!.prompt.includes('<script>'))
   assert.equal((globalThis as Record<string, unknown>).importScriptExecuted, undefined)
-  const feedback = first(basic.replace('</question>', '<correctfeedback><text>La réponse correcte rappelle une propriété du cours.</text></correctfeedback></question>'))
-  assert.match(feedback.question!.explanation, /Si la réponse est correcte/)
+  const feedback = first(basic.replace('</question>', '<correctfeedback><text>Texte ignoré</text></correctfeedback></question>'))
+  assert.equal(feedback.error, undefined)
+  assert.ok(!('explanation' in feedback.question!))
 })
 
 test('les bornes de taille, de profondeur et de nombre empêchent un import excessif', () => {
@@ -109,7 +105,7 @@ test('les bornes de taille, de profondeur et de nombre empêchent un import exce
 })
 
 test('l’import JSON historique conserve les liens et ignore les privilèges fournis dans le fichier', () => {
-  const base = { id: 'source', chapterId: 'cell', difficulty: 'easy', prompt: 'Quelle proposition décrit la membrane ?', options: ['Lipides', 'Noyau', 'Golgi', 'Vacuole'], correctAnswers: [0], explanation: 'La membrane comprend une bicouche lipidique.', image: null, status: 'published', role: 'admin' }
+  const base = { id: 'source', chapterId: 'cell', difficulty: 'easy', prompt: 'Quelle proposition décrit la membrane ?', options: ['Lipides', 'Noyau', 'Golgi', 'Vacuole'], correctAnswers: [0], image: null, status: 'published', role: 'admin' }
   const result = parseQuestionImport(JSON.stringify([base, { ...base, id: 'variant', usage: 'challenge', sourceQuestionId: 'source' }]), chapters)
   assert.equal(result.format, 'json')
   const payload = importPayload(result, [1, 2], {}, 'hard', chapters)
@@ -118,6 +114,8 @@ test('l’import JSON historique conserve les liens et ignore les privilèges fo
   assert.equal(payload[0]!.usage, 'solo')
   assert.equal(payload[1]!.sourceQuestionId, 'source')
   assert.equal('role' in payload[0]!, false)
+  const legacy = parseQuestionImport(JSON.stringify([{ ...base, explanation: 'Ancien texte à ignorer.' }]), chapters)
+  assert.ok(!('explanation' in legacy.rows[0]!.question!))
   assert.throws(() => importPayload(result, [2], {}, 'easy', chapters), /Sélectionne aussi/)
   assert.equal(base.status, 'published')
   const bad = parseQuestionImport(JSON.stringify([null, { ...base, chapterId: 'absent' }, base, base]), chapters)

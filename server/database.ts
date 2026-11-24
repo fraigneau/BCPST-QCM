@@ -64,6 +64,14 @@ export function openDatabase(path: string) {
     for (const row of db.prepare('SELECT id,body FROM games').all()) db.prepare('UPDATE games SET status=? WHERE id=?').run(JSON.parse(String(row.body)).status, String(row.id))
   }
   db.exec('CREATE INDEX IF NOT EXISTS games_status ON games(status,updated_at)')
+  if (!db.prepare("SELECT value FROM metadata WHERE key='without-pedagogical-text'").get()) {
+    db.exec(`BEGIN;
+      UPDATE questions SET body=json_remove(body,'$.explanation');
+      UPDATE answers SET body=json_remove(body,'$.explanation');
+      UPDATE games SET body=json_set(body,'$.questions',json(COALESCE((SELECT json_group_array(json_remove(value,'$.explanation')) FROM json_each(games.body,'$.questions')),'[]')));
+      INSERT INTO metadata(key,value) VALUES ('without-pedagogical-text','1');
+      COMMIT;`)
+  }
   const now = new Date().toISOString()
   const insertUser = db.prepare('INSERT OR IGNORE INTO users(id,name,email,role,password_hash,created_at) VALUES (?,?,?,?,?,?)')
   for (const [id, name, email, role] of [

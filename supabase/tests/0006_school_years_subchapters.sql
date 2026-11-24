@@ -30,7 +30,7 @@ do $$ begin
  begin perform public.qcm_content('create_chapter',jsonb_build_object('name','Interdit','parentId',(select body->>'id' from curriculum_data where label='root')));raise exception 'FAIL contributor chapter';exception when insufficient_privilege then null;end;
 end $$;
 select set_config('request.jwt.claim.sub',(select id::text from curriculum_people where label='admin'),true);
-insert into curriculum_data values('input',jsonb_build_object('chapterId',(select body->>'id' from curriculum_data where label='child'),'difficulty','medium','prompt','Quelles affirmations décrivent la membrane ?', 'options',jsonb_build_array('Lipides','Protéines','Chromosomes','Ribosomes'),'correctAnswers',jsonb_build_array(0,1),'explanation','Une correction suffisamment détaillée pour comprendre.','status','pending'));
+insert into curriculum_data values('input',jsonb_build_object('chapterId',(select body->>'id' from curriculum_data where label='child'),'difficulty','medium','prompt','Quelles affirmations décrivent la membrane ?', 'options',jsonb_build_array('Lipides','Protéines','Chromosomes','Ribosomes'),'correctAnswers',jsonb_build_array(0,1),'status','pending'));
 insert into curriculum_data values('year1',public.qcm_content('create_question',(select body from curriculum_data where label='input')||'{"schoolYear":"BCPST1"}'));
 insert into curriculum_data values('year2',public.qcm_content('create_question',(select body from curriculum_data where label='input')||'{"schoolYear":"BCPST2"}'));
 insert into curriculum_data values('common',public.qcm_content('create_question',(select body from curriculum_data where label='input')));

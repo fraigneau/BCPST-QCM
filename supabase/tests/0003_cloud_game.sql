@@ -17,16 +17,16 @@ from cloud_game_fixture where label in ('question_a','question_b');
 insert into public.questions(id,chapter_id,author_id,difficulty,prompt,options,status)
 select q.id,'test-' || q.label || '-' || q.id::text,h.id,'medium','Question pédagogique ' || q.label || ' initiale ?',array['Première proposition','Deuxième proposition','Troisième proposition','Quatrième proposition'],'published'
 from cloud_game_fixture q cross join cloud_game_fixture h where q.label in ('question_a','question_b') and h.label = 'host';
-insert into private.question_keys(question_id,correct_answers,explanation)
-select id,case when label = 'question_a' then array[0,2]::smallint[] else array[1]::smallint[] end,'Explication pédagogique initiale pour la correction.'
+insert into private.question_keys(question_id,correct_answers)
+select id,case when label = 'question_a' then array[0,2]::smallint[] else array[1]::smallint[] end
 from cloud_game_fixture where label in ('question_a','question_b');
 
 insert into public.questions(id,chapter_id,author_id,difficulty,prompt,options,status,usage,source_question_id)
 select variant.id,source.chapter_id,source.author_id,source.difficulty,'Variante rapide ' || variant.label || ' ?',source.options,'published','challenge',source.id
 from cloud_game_fixture variant join cloud_game_fixture original on original.label = replace(variant.label,'challenge_','question_')
 join public.questions source on source.id = original.id where variant.label in ('challenge_a','challenge_b');
-insert into private.question_keys(question_id,correct_answers,explanation)
-select id,array[1]::smallint[],'Correction de la variante rapide du chapitre.' from cloud_game_fixture where label in ('challenge_a','challenge_b');
+insert into private.question_keys(question_id,correct_answers)
+select id,array[1]::smallint[] from cloud_game_fixture where label in ('challenge_a','challenge_b');
 
 do $$
 begin
@@ -67,7 +67,7 @@ reset role;
 
 update public.games set question_started_at = clock_timestamp() - interval '7 days' where id = (select (body->>'id')::uuid from cloud_game_state where label = 'solo');
 update public.questions set prompt = 'Question modifiée après la création du quiz.' where id in (select id from cloud_game_fixture where label in ('question_a','question_b'));
-update private.question_keys set explanation = 'Explication modifiée après la création du quiz.' where question_id in (select id from cloud_game_fixture where label in ('question_a','question_b'));
+update private.question_keys set correct_answers = array[3]::smallint[] where question_id in (select id from cloud_game_fixture where label in ('question_a','question_b'));
 set local role authenticated;
 
 do $$
@@ -84,7 +84,7 @@ begin
     state := public.qcm_game('answer',jsonb_build_object('gameId',state->>'id','questionId',state->'question'->>'id','selected',selection,'points',999999));
     if (state->'result'->>'points')::integer <> 100 or not (state->'result'->>'correct')::boolean or state->'deadline' <> 'null'::jsonb then raise exception 'FAIL: solo scoring'; end if;
     if index = 0 and (state->'result'->>'elapsedMs')::integer < 600000000 then raise exception 'FAIL: long solo response lost elapsed time'; end if;
-    if state->'result'->>'explanation' <> 'Explication pédagogique initiale pour la correction.' then raise exception 'FAIL: correction snapshot changed'; end if;
+    if state->'result' ? 'explanation' then raise exception 'FAIL: removed text returned'; end if;
     begin perform public.qcm_game('answer',jsonb_build_object('gameId',state->>'id','questionId',state->'question'->>'id','selected',selection)); raise exception 'FAIL: duplicate answer'; exception when unique_violation then null; end;
     state := public.qcm_game('next',jsonb_build_object('gameId',state->>'id'));
   end loop;

@@ -20,7 +20,7 @@ test('le choix d’un chapitre inclut ses sous-chapitres sans double compter ; l
 })
 
 test('les filtres et le JSON conservent les années ; le XML reçoit l’année choisie', () => {
-  const base: Question = { id:'source',chapterId:'child',schoolYear:'BCPST1',difficulty:'easy',prompt:'Quelles propriétés décrivent une membrane ?',options:['A','B','C','D'],correctAnswers:[0],explanation:'Une correction suffisamment détaillée.',image:null,status:'draft',authorId:'admin',createdAt:'2026-10-29',updatedAt:'2026-10-29' }
+  const base: Question = { id:'source',chapterId:'child',schoolYear:'BCPST1',difficulty:'easy',prompt:'Quelles propriétés décrivent une membrane ?',options:['A','B','C','D'],correctAnswers:[0],image:null,status:'draft',authorId:'admin',createdAt:'2026-10-29',updatedAt:'2026-10-29' }
   assert.equal(filterLibraryQuestions([base,{...base,id:'common',schoolYear:'both'}],{schoolYear:'BCPST2',chapterIds:['root','child']}).length,1)
   const plan=parseQuestionImport(JSON.stringify([base]),chapters)
   assert.equal(importPayload(plan,[1],{},'medium',chapters,'BCPST2')[0]!.schoolYear,'BCPST1')
@@ -53,7 +53,7 @@ test('années et sous-chapitres : droits, cycles, filtres serveur et conservatio
       const renamed=await admin(`/chapters/${child.id}`,'PATCH',{name:'Sous-chapitre renommé'})
       assert.equal(renamed.body.parentId,root.id)
     })
-    const input={chapterId:child.id,difficulty:'medium',prompt:'Une question de test sur les membranes ?',options:['A','B','C','D'],correctAnswers:[0],explanation:'La correction de cette notion est suffisamment détaillée.',image:null,status:'pending'}
+    const input={chapterId:child.id,difficulty:'medium',prompt:'Une question de test sur les membranes ?',options:['A','B','C','D'],correctAnswers:[0],image:null,status:'pending'}
     const q1=(await admin('/questions','POST',{...input,schoolYear:'BCPST1'})).body
     const q2=(await admin('/questions','POST',{...input,schoolYear:'BCPST2'})).body
     const common=(await admin('/questions','POST',input)).body

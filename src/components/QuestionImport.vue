@@ -129,7 +129,7 @@ onBeforeUnmount(() => { disposed = true })
               <p v-if="row.category" class="muted">{{ row.category }}</p>
               <p v-if="row.error" class="row-error">{{ row.error }}</p>
               <ul v-if="row.warnings.length" class="row-warnings"><li v-for="warning in row.warnings" :key="warning">{{ warning }}</li></ul>
-              <details v-if="row.question && !row.error"><summary>Voir la question et les réponses</summary><p class="question-text">{{ row.question.prompt }}</p><img v-if="row.imageDataUrl" :src="row.imageDataUrl" alt="Illustration intégrée à importer" class="import-image"><ol type="A"><li v-for="(option, index) in row.question.options" :key="index">{{ option }}<strong v-if="row.question.correctAnswers.includes(index)"> — Bonne réponse</strong></li></ol><p class="question-text">{{ row.question.explanation }}</p></details>
+              <details v-if="row.question && !row.error"><summary>Voir la question et les réponses</summary><p class="question-text">{{ row.question.prompt }}</p><img v-if="row.imageDataUrl" :src="row.imageDataUrl" alt="Illustration intégrée à importer" class="import-image"><ol type="A"><li v-for="(option, index) in row.question.options" :key="index">{{ option }}<strong v-if="row.question.correctAnswers.includes(index)"> — Bonne réponse</strong></li></ol></details>
             </li>
           </ul>
           <label v-if="rejected" class="skip-confirm"><input v-model="skippedAccepted" type="checkbox" :disabled="busy">Importer ma sélection en laissant de côté les {{ rejected }} question{{ rejected > 1 ? 's' : '' }} incompatible{{ rejected > 1 ? 's' : '' }}.</label>

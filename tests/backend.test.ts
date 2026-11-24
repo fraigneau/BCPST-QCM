@@ -41,7 +41,7 @@ test('API locale : sessions, permissions, validation, parties et persistance', a
   let questions: Question[] = []
   let chapterId = ''
   let studentId = ''
-  const input: QuestionInput = { chapterId: '', difficulty: 'medium', prompt: 'Quel organite est délimité par une double membrane ?', options: ['Mitochondrie', 'Ribosome', 'Lysosome', 'Peroxysome'], correctAnswers: [0], explanation: 'La mitochondrie possède une membrane externe et une membrane interne.', image: null, status: 'pending' }
+  const input: QuestionInput = { chapterId: '', difficulty: 'medium', prompt: 'Quel organite est délimité par une double membrane ?', options: ['Mitochondrie', 'Ribosome', 'Lysosome', 'Peroxysome'], correctAnswers: [0], image: null, status: 'pending' }
   try {
     await t.test('authentification, cookies et inscription limitée au rôle élève', async () => {
       assert.equal((await anonymous.request('/bootstrap')).status, 401)

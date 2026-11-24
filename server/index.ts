@@ -24,7 +24,7 @@ const questionSchema = z.object({
   chapterId: z.string().min(1).max(100), difficulty: z.enum(['easy', 'medium', 'hard']),
   prompt: z.string().trim().min(10).max(5000), options: z.array(z.string().trim().min(1).max(1000)).length(4),
   correctAnswers: z.array(z.number().int().min(0).max(3)).min(1).max(4).refine(a => new Set(a).size === a.length),
-  explanation: z.string().trim().min(10).max(10000), image: z.string().max(250).nullable(), status: z.enum(['draft', 'pending']),
+  image: z.string().max(250).nullable(), status: z.enum(['draft', 'pending']),
 })
 const gameSchema = z.object({ schoolYear: z.enum(['all', 'BCPST1', 'BCPST2']).default('all'), chapterIds: z.array(z.string()).max(100).default([]), difficulty: z.enum(['all', 'easy', 'medium', 'hard']).default('all'), count: z.number().int().min(1).max(30).default(10), mistakesOnly: z.boolean().optional() })
 const tokenHash = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -304,7 +304,7 @@ export function createApp(options: AppOptions = {}) {
     if (q.usage === 'challenge') {
       if (q.correctAnswers.length !== 1) throw new ApiError(400, 'Un QCS de défi doit avoir une seule bonne réponse.')
       const source = readQuestions(db).find(item => item.id === q.sourceQuestionId)
-      if (!source || source.id === previous?.id || (source.usage ?? 'solo') !== 'solo' || source.chapterId !== q.chapterId || (actor.role !== 'admin' && source.authorId !== actor.id)) throw new ApiError(400, 'Choisissez une question solo accessible du même chapitre.')
+      if (q.sourceQuestionId && (!source || source.id === previous?.id || (source.usage ?? 'solo') !== 'solo' || source.chapterId !== q.chapterId || (actor.role !== 'admin' && source.authorId !== actor.id))) throw new ApiError(400, 'Choisissez une question solo accessible du même chapitre.')
     } else if (q.sourceQuestionId) throw new ApiError(400, 'Une question solo ne peut pas être une variante.')
     if (previous && readQuestions(db).some(item => item.sourceQuestionId === previous.id && (q.usage !== 'solo' || item.chapterId !== q.chapterId))) throw new ApiError(400, 'Déplacez d’abord les variantes liées à cette question.')
     return q
@@ -337,7 +337,7 @@ export function createApp(options: AppOptions = {}) {
     const schoolYear = parse(z.enum(['all','BCPST1','BCPST2']).default('all'), req.query.schoolYear)
     const chapterIds = req.query.chapterId ? selectedChapterIds(readChapters(db), [String(req.query.chapterId)]) : null
     const search = String(req.query.search ?? '').toLocaleLowerCase('fr')
-    res.json(readQuestions(db).filter(q => (userOf(res).role === 'admin' || q.authorId === userOf(res).id) && (!req.query.status || q.status === req.query.status) && (!chapterIds || chapterIds.includes(q.chapterId)) && matchesSchoolYear(q.schoolYear, schoolYear) && (!search || `${q.prompt} ${q.explanation}`.toLocaleLowerCase('fr').includes(search))))
+    res.json(readQuestions(db).filter(q => (userOf(res).role === 'admin' || q.authorId === userOf(res).id) && (!req.query.status || q.status === req.query.status) && (!chapterIds || chapterIds.includes(q.chapterId)) && matchesSchoolYear(q.schoolYear, schoolYear) && (!search || q.prompt.toLocaleLowerCase('fr').includes(search))))
   })
   api.post('/questions', roles('admin', 'contributor'), (req, res) => {
     const input = validatedQuestion(req.body, userOf(res))
