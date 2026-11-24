@@ -37,12 +37,15 @@ test('chapitres et variantes : droits, imports liés, sélection et réponses co
       assert.equal((await student(`/chapters/${chapterId}`, 'PATCH', { name: 'Interdit' })).status, 403)
       assert.equal((await admin('/chapters/absent', 'PATCH', { name: 'Absent' })).status, 404)
     })
-    const input: QuestionInput = { chapterId, difficulty: 'hard', prompt: 'Quelles affirmations décrivent une membrane ?', options: ['Une bicouche', 'Des protéines', 'Un chromosome', 'Un ribosome'], correctAnswers: [0, 1], explanation: 'Une membrane comporte une bicouche lipidique et des protéines.', image: null, status: 'pending' }
+    const input: QuestionInput = { chapterId, difficulty: 'hard', prompt: 'Quelles affirmations décrivent une membrane ?', options: ['Une bicouche', 'Des protéines', 'Un chromosome', 'Un ribosome'], correctAnswers: [0, 1], image: null, status: 'pending' }
     const solo = (await admin('/questions', 'POST', input)).body
     const challengeInput = { ...input, usage: 'challenge', sourceQuestionId: solo.id, correctAnswers: [0], prompt: 'Quelle structure forme la base de la membrane ?' }
-    await t.test('un QCS possède une seule bonne réponse et une source solo accessible du même chapitre', async () => {
+    await t.test('un QCS possède une seule bonne réponse ; une source fournie doit rester accessible', async () => {
       assert.equal((await admin('/questions', 'POST', { ...challengeInput, correctAnswers: [0, 1] })).status, 400)
-      assert.equal((await admin('/questions', 'POST', { ...challengeInput, sourceQuestionId: null })).status, 400)
+      const standalone = await admin('/questions', 'POST', { ...challengeInput, sourceQuestionId: null })
+      assert.equal(standalone.status, 201)
+      assert.equal(standalone.body.sourceQuestionId, null)
+      assert.equal((await admin(`/questions/${standalone.body.id}`, 'DELETE')).status, 200)
       assert.equal((await admin('/questions', 'POST', { ...challengeInput, chapterId: 'cellulaire' })).status, 400)
       assert.equal((await contributor('/questions', 'POST', challengeInput)).status, 400)
       assert.equal((await admin('/questions', 'POST', { ...input, sourceQuestionId: solo.id })).status, 400)

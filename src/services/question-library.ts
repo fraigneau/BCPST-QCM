@@ -15,6 +15,6 @@ export function filterLibraryQuestions(questions: Question[], filters: LibraryFi
     && (filters.chapterIds ? filters.chapterIds.includes(question.chapterId) : !filters.chapterId || question.chapterId === filters.chapterId)
     && (!filters.status || question.status === filters.status)
     && (!filters.difficulty || question.difficulty === filters.difficulty)
-    && (!search || searchable(`${question.prompt} ${question.explanation}`).includes(search)),
+    && (!search || searchable(question.prompt).includes(search)),
   ).sort((first, second) => second.updatedAt.localeCompare(first.updatedAt) || first.id.localeCompare(second.id))
 }

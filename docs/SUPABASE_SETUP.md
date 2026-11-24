@@ -92,3 +92,9 @@ Le dossier `data/` reste indépendant de PostgreSQL. Ne pas copier SQLite, ses c
 Un transfert de questions relues peut utiliser les outils d’import après vérification de leur format et transfert séparé des images. Il n’importe pas automatiquement les parties ou scores. La banque SQL initiale est une banque d’essai distincte, pas une migration des utilisateurs locaux.
 
 Voir aussi le [guide officiel Supabase pour Vue](https://supabase.com/docs/guides/getting-started/quickstarts/vue) et le [guide Cloudflare Pages](CLOUDFLARE_PAGES.md).
+
+## Suppression des textes pédagogiques et QCS autonomes
+
+Sauvegarder la base puis appliquer `20261124120000_remove_pedagogical_corrections.sql` avant de publier le frontend correspondant. La migration supprime définitivement les colonnes `private.question_keys.explanation` et `private.game_questions.explanation`, y compris les anciens textes des snapshots, puis adapte les fonctions de contenu/jeu. Elle autorise les QCS sans source ; les liens existants restent vérifiés. Les bonnes réponses, scores, choix et délais de jeu ne sont pas supprimés. Pour revenir aux textes, une sauvegarde est nécessaire ; un retour frontend ne les restaure pas.
+
+Exécuter les suites SQL et `0007_without_pedagogical_text.sql` après migration. La validation de cette évolution est locale (PGlite) ; aucune migration distante n’a été appliquée pour cette PR. Ne pas déployer le frontend sur une base non migrée : les anciennes RPC exigent encore une explication et une source de QCS.

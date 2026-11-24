@@ -47,8 +47,8 @@ insert into public.questions(id, chapter_id, author_id, difficulty, prompt, opti
 select f.id, 'cellulaire', u.id, 'easy', 'Question de test de la fondation ' || f.label, array['A','B','C','D'], 'published'
 from foundation_fixture f cross join foundation_fixture u where f.label in ('question','future_question') and u.label = 'other';
 
-insert into private.question_keys(question_id, correct_answers, explanation)
-select id, array[0]::smallint[], 'Une explication de test suffisamment longue.' from foundation_fixture where label in ('question','future_question');
+insert into private.question_keys(question_id, correct_answers)
+select id, array[0]::smallint[] from foundation_fixture where label in ('question','future_question');
 
 do $$
 begin
@@ -82,9 +82,9 @@ from foundation_fixture g cross join foundation_fixture u where g.label = 'game'
 insert into public.game_players(game_id, player_id)
 select g.id, u.id from foundation_fixture g cross join foundation_fixture u where g.label = 'game' and u.label in ('student','other');
 
-insert into private.game_questions(game_id, position, question_id, chapter_id, public_snapshot, correct_answers, explanation)
+insert into private.game_questions(game_id, position, question_id, chapter_id, public_snapshot, correct_answers)
 select g.id, case q.label when 'question' then 0 else 1 end, q.id, 'cellulaire',
-  jsonb_build_object('id',q.id,'prompt','Question publique','options',array['A','B','C','D']), array[0]::smallint[], 'Explication privée de test.'
+  jsonb_build_object('id',q.id,'prompt','Question publique','options',array['A','B','C','D']), array[0]::smallint[]
 from foundation_fixture g cross join foundation_fixture q where g.label = 'game' and q.label in ('question','future_question');
 
 insert into public.submissions(game_id, player_id, question_index, selected, elapsed_ms, is_correct, points)

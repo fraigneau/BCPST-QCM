@@ -128,13 +128,12 @@ test('les contributeurs disposent de leur bibliothèque et pas de la modération
 })
 
 test('les dossiers présentent les chapitres vides et les publications en attente sans afficher les corrections', async () => {
-  const question = { id: 'folder-q', chapterId: 'cellulaire', difficulty: 'easy', prompt: 'Énoncé qui ne doit pas apparaître dans les dossiers.', options: ['A','B','C','D'], correctAnswers: [0], explanation: 'Correction réservée à la question ouverte.', image: null, status: 'pending', authorId: 'test-admin', createdAt: '2026-10-01', updatedAt: '2026-10-01' }
+  const question = { id: 'folder-q', chapterId: 'cellulaire', difficulty: 'easy', prompt: 'Énoncé qui ne doit pas apparaître dans les dossiers.', options: ['A','B','C','D'], correctAnswers: [0], image: null, status: 'pending', authorId: 'test-admin', createdAt: '2026-10-01', updatedAt: '2026-10-01' }
   const html = await renderToString(createSSRApp(views.get('QuestionFolders')!, { chapters, questions: [question, { ...question, id: 'folder-published', status: 'published' }] }))
   assert.equal((html.match(/class="folder-row"/g) || []).length, 2)
   assert.match(html, /Ouvrir le chapitre Biologie cellulaire et génétique, 2 questions, 1 publiée, 1 à valider/)
   assert.match(html, /Ouvrir le chapitre Biologie végétale, 0 question, 0 publiée, 0 à valider/)
   assert.ok(!html.includes(question.prompt))
-  assert.ok(!html.includes(question.explanation))
 })
 
 test('un lien de dossier ouvre le chapitre demandé et conserve un retour à la bibliothèque', async () => {
@@ -245,11 +244,10 @@ test('la correction affiche les bonnes réponses et le passage manuel en solo', 
   const game = boardState('solo')
   game.phase = 'correction'
   game.players[0]!.answered = true
-  game.result = { questionId: 'q-board', selected: [0, 2], correctAnswers: [0, 1], explanation: 'Les ribosomes et les ARN de transfert participent à la traduction.', correct: false, points: 0, elapsedMs: 80_000 }
+  game.result = { questionId: 'q-board', selected: [0, 2], correctAnswers: [0, 1], correct: false, points: 0, elapsedMs: 80_000 }
   const html = await renderBoard(game, 0, [0, 2])
   assert.equal((html.match(/Bonne réponse/g) || []).length, 2)
   assert.match(html, /À revoir/)
-  assert.match(html, /Les ribosomes et les ARN de transfert/)
   assert.match(html, /Question suivante/)
   assert.ok(!html.includes('Prochaine question'))
 })
@@ -258,12 +256,11 @@ test('le défi affiche le résultat et la bonne réponse sans correction pédago
   const game = boardState('multi')
   game.phase = 'correction'
   game.players[0]!.answered = true
-  game.result = { questionId: 'q-board', selected: [2], correctAnswers: [0], explanation: 'Cette correction pédagogique reste réservée au solo.', correct: false, points: 0, elapsedMs: 2000 }
+  game.result = { questionId: 'q-board', selected: [2], correctAnswers: [0], correct: false, points: 0, elapsedMs: 2000 }
   const html = await renderBoard(game, 3, [2])
   assert.match(html, /Bonne réponse/)
   assert.match(html, /Ce n’est pas la bonne réponse/)
   assert.match(html, /Prochaine question/)
-  assert.ok(!html.includes(game.result.explanation))
   assert.ok(!html.includes('correction-explanation'))
   assert.ok(!html.includes('Prenons le temps de comprendre'))
 })

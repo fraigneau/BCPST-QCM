@@ -13,7 +13,7 @@ update public.profiles set role = 'contributor' where id = (select id from conte
 
 update content_fixture set data = jsonb_build_object('chapterId','cellulaire','difficulty','medium',
   'prompt','Une question de contenu suffisamment précise ?', 'options',jsonb_build_array('Réponse A','Réponse B','Réponse C','Réponse D'),
-  'correctAnswers',jsonb_build_array(0,2),'explanation','Une correction pédagogique suffisamment détaillée.',
+  'correctAnswers',jsonb_build_array(0,2),
   'image',null,'status','pending') where label = 'question';
 
 insert into storage.objects(bucket_id, name, metadata)
@@ -185,8 +185,8 @@ insert into public.games(id, host_id, mode, status, question_count, question_sta
 select g.id, u.id, 'solo', 'playing', 1, now() from content_fixture g cross join content_fixture u where g.label = 'history_game' and u.label = 'student';
 insert into public.game_players(game_id, player_id)
 select g.id, u.id from content_fixture g cross join content_fixture u where g.label = 'history_game' and u.label = 'student';
-insert into private.game_questions(game_id, position, question_id, chapter_id, public_snapshot, correct_answers, explanation)
-select g.id, 0, q.id, q.chapter_id, private.content_question(q.id) - array['correctAnswers','explanation','authorId','reviewNote'], array[0,2]::smallint[], 'Correction historique conservée.'
+insert into private.game_questions(game_id, position, question_id, chapter_id, public_snapshot, correct_answers)
+select g.id, 0, q.id, q.chapter_id, private.content_question(q.id) - array['correctAnswers','reviewNote'], array[0,2]::smallint[]
 from content_fixture g join public.questions q on q.id = (select id from content_fixture where label = 'question') where g.label = 'history_game';
 
 set local role authenticated;

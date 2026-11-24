@@ -89,8 +89,7 @@ watch(() => props.game.result, async (result, previous) => {
     </section>
 
     <section v-if="game.result" ref="correction" class="round-correction" :class="{ 'needs-review': !game.result.correct }" aria-live="polite" aria-labelledby="correction-title">
-      <div class="correction-title"><span class="correction-symbol"><component :is="game.result.correct ? Check : Lightbulb" :size="24" /></span><div><p>{{ game.result.correct ? 'Bien joué !' : 'On retient pour la prochaine fois' }}</p><h2 id="correction-title">{{ game.result.correct ? 'Tu as tout bon.' : game.result.selected.length ? (competitive ? 'Ce n’est pas la bonne réponse.' : 'Prenons le temps de comprendre.') : 'Le temps s’est écoulé.' }}</h2></div><span class="round-points">+{{ game.result.points }}<small>points</small></span></div>
-      <p v-if="!competitive" class="correction-explanation">{{ game.result.explanation }}</p>
+      <div class="correction-title"><span class="correction-symbol"><component :is="game.result.correct ? Check : Lightbulb" :size="24" /></span><div><p>{{ game.result.correct ? 'Bien joué !' : 'On retient pour la prochaine fois' }}</p><h2 id="correction-title">{{ game.result.correct ? 'Tu as tout bon.' : game.result.selected.length ? 'Ce n’est pas la bonne réponse.' : 'Le temps s’est écoulé.' }}</h2></div><span class="round-points">+{{ game.result.points }}<small>points</small></span></div>
       <button v-if="!competitive" class="button next-question" :disabled="busy" @click="emit('next')">{{ busy ? 'Chargement…' : game.questionIndex + 1 === game.totalQuestions ? 'Voir mes résultats' : 'Question suivante' }}<ArrowRight :size="19" /></button>
       <p v-else class="next-round"><Clock3 :size="16" />{{ game.questionIndex + 1 === game.totalQuestions ? 'Classement final' : 'Prochaine question' }} dans {{ remaining }} s</p>
     </section>
@@ -160,8 +159,6 @@ watch(() => props.game.result, async (result, previous) => {
 .correction-title h2 { font-size: 16px; letter-spacing: -.3px; line-height: 1.4; }
 .round-points { font-size: 24px; font-weight: 700; color: #52773e; letter-spacing: -.6px; flex-shrink: 0; }
 .round-points small { display: block; text-align: center; font-size: 9px; font-weight: 400; letter-spacing: 0; }
-.correction-explanation { margin: 21px 0; font-size: 14px; color: #5e7355; line-height: 1.85; white-space: pre-line; }
-.needs-review .correction-explanation { color: #7f7253; }
 .next-question { width: 100%; min-height: 50px; justify-content: space-between; border-radius: 12px; font-size: 13px; }
 .next-round { display: flex; align-items: center; justify-content: center; gap: 8px; color: #7d896e; font-size: 12px; border-top: 1px solid #dce4d2; padding-top: 17px; }
 .competitive .tile-0 { --tile-bg: #2d65b1; --tile-ink: #fff; --tile-border: #143c76; }
