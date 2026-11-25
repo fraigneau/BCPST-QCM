@@ -32,7 +32,7 @@ La connexion e-mail appelle Auth directement. La connexion par pseudo utilise la
 
 Une inscription crée un profil `student`. Les métadonnées utilisateur ne donnent aucun rôle privilégié. Les promotions `contributor` ou `admin` se font par une opération de confiance dans Supabase. L’administration cloud affiche les rôles en lecture seule. Les tables exposées sont protégées par RLS ; les bonnes réponses et les commandes internes privilégiées sont isolées dans le schéma privé.
 
-Un contributeur peut proposer et modifier ses questions autorisées, mais ne peut pas les publier lui-même. L’administrateur publie ou refuse avec un motif. Les RPC valident l’énoncé, les quatre propositions distinctes, les indices exacts de bonnes réponses, le chapitre et les images. L’état visible par un élève n’expose pas la correction avant la phase autorisée.
+Un contributeur peut proposer et modifier ses questions autorisées, mais ne peut pas les publier lui-même. L’administrateur publie ou refuse avec un motif. Depuis l’éditeur, il peut aussi enregistrer directement une question publiée ; ce statut est autorisé côté serveur uniquement pour le rôle administrateur réel. Chaque publication directe SQL enregistre le validateur et la révision dans l’historique. Les contributeurs restent limités aux brouillons et soumissions. Les RPC valident l’énoncé, les quatre propositions distinctes, les indices exacts de bonnes réponses, le chapitre et les images. L’état visible par un élève n’expose pas la correction avant la phase autorisée.
 
 Les changements d’identité invalident l’état précédent et interrompent les abonnements ou lectures de partie. Les réponses réseau tardives ne doivent pas restaurer l’ancien compte. Les modes de démonstration sont masqués dans le backend cloud.
 

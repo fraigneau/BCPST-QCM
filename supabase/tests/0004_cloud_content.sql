@@ -89,7 +89,10 @@ begin
     begin
       perform public.qcm_content('create_question', invalid);
       raise exception 'FAIL: invalid question accepted';
-    exception when invalid_parameter_value then null;
+    exception
+      when invalid_parameter_value then null;
+      when insufficient_privilege then
+        if invalid ->> 'status' is distinct from 'published' then raise; end if;
     end;
   end loop;
   begin
