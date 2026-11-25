@@ -129,6 +129,16 @@ export function createCloudTransport(getClient: (authorization: string) => Cloud
       if (options.signal) call = call.abortSignal(options.signal)
       const { data, error } = await call
       if (error) {
+        // Ces messages appartiennent à l’ancienne validation, avant la suppression
+        // du champ pédagogique. Ne pas renvoyer l’utilisateur vers un champ retiré.
+        const outdatedQuestionValidation = route.fn === 'qcm_content'
+          && ['create_question', 'update_question', 'import'].includes(route.action)
+          && error.code === '22023'
+          && ['Énoncé et correction requis.', 'Longueur de l’énoncé ou de la correction invalide.'].includes(error.message)
+        if (outdatedQuestionValidation) return json({
+          code: 'CLOUD_SCHEMA_OUTDATED',
+          message: 'La création et la modification des questions nécessitent une mise à jour de la base. Demande à l’administrateur de terminer la mise à jour du site.',
+        }, 409)
         const status = cloudStatus(error)
         if (route.fn === 'qcm_set_username' && error.code === '23505') return json({ message: 'Ce pseudo est déjà utilisé. Choisis-en un autre.' }, 409)
         return json({ message: ['PGRST202', '42883'].includes(error.code) ? 'La base Supabase doit être mise à jour avant de jouer.' : status >= 500 ? 'Supabase est momentanément indisponible. Réessaie.' : error.message }, status)

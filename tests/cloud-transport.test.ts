@@ -85,6 +85,29 @@ test('les erreurs SQL sont visibles et une migration manquante ne provoque pas d
   assert.match((await response.json()).message, /mise à jour/)
 })
 
+test('l’ancienne validation de correction indique la migration manquante sans ajouter de faux champ ni réessayer', async () => {
+  for (const [path, method] of [['/api/questions', 'POST'], ['/api/questions/q', 'PUT'], ['/api/questions/import', 'POST']] as const) {
+    const f = fixture()
+    f.setError({ code: '22023', message: 'Énoncé et correction requis.' })
+    const response = await f.transport(path, { method, body: JSON.stringify({ prompt: 'Un énoncé suffisamment long ?' }) })
+    assert.equal(response.status, 409)
+    const error = await response.json()
+    assert.equal(error.code, 'CLOUD_SCHEMA_OUTDATED')
+    assert.match(error.message, /mise à jour de la base/)
+    assert.equal(f.calls.length, 1)
+    assert.ok(!('explanation' in f.calls[0]!.payload))
+  }
+  const f = fixture()
+  f.setError({ code: '22023', message: 'Énoncé requis.' })
+  const invalid = await f.transport('/api/questions', { method: 'POST', body: '{}' })
+  assert.equal(invalid.status, 400)
+  assert.equal((await invalid.json()).message, 'Énoncé requis.')
+  f.setError(null)
+  f.setResult({ id: 'question', prompt: 'Un nouvel énoncé ?' })
+  const saved = await f.transport('/api/questions', { method: 'POST', body: JSON.stringify({ prompt: 'Un nouvel énoncé ?' }) })
+  assert.equal(saved.status, 200)
+})
+
 test('une session Pages restaurée charge le compte distant sans requête vers Node', async t => {
   const f = fixture()
   f.setResult({ user: { id: 'student', role: 'student', name: 'Camille' }, chapters: [], progress: {}, counts: {} })
