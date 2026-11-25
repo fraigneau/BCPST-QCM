@@ -24,7 +24,7 @@ const questionSchema = z.object({
   chapterId: z.string().min(1).max(100), difficulty: z.enum(['easy', 'medium', 'hard']),
   prompt: z.string().trim().min(10).max(5000), options: z.array(z.string().trim().min(1).max(1000)).length(4),
   correctAnswers: z.array(z.number().int().min(0).max(3)).min(1).max(4).refine(a => new Set(a).size === a.length),
-  image: z.string().max(250).nullable(), status: z.enum(['draft', 'pending']),
+  image: z.string().max(250).nullable(), status: z.enum(['draft', 'pending', 'published']),
 })
 const gameSchema = z.object({ schoolYear: z.enum(['all', 'BCPST1', 'BCPST2']).default('all'), chapterIds: z.array(z.string()).max(100).default([]), difficulty: z.enum(['all', 'easy', 'medium', 'hard']).default('all'), count: z.number().int().min(1).max(30).default(10), mistakesOnly: z.boolean().optional() })
 const tokenHash = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -298,6 +298,7 @@ export function createApp(options: AppOptions = {}) {
   function validatedQuestion(input: unknown, actor: User, previous?: Question) {
     const value = input && typeof input === 'object' && !Array.isArray(input) && !Object.hasOwn(input, 'schoolYear') && previous ? { ...input, schoolYear: previous.schoolYear ?? 'both' } : input
     const q = parse(questionSchema, value)
+    if (q.status === 'published' && actor.role !== 'admin') throw new ApiError(403, 'La publication directe est réservée aux administrateurs.')
     if (!readChapters(db).some(c => c.id === q.chapterId)) throw new ApiError(400, 'Chapitre inconnu.')
     if (new Set(q.options.map(o => o.toLowerCase())).size !== 4) throw new ApiError(400, 'Les quatre propositions doivent être différentes.')
     if (q.image && !/^\/uploads\/[a-f0-9-]+\.(png|jpg|gif|webp)$/.test(q.image) && !['/illustrations/cell.svg', '/illustrations/leaf.svg', '/illustrations/subduction.svg'].includes(q.image)) throw new ApiError(400, 'Importez l’image avant de l’associer à la question.')

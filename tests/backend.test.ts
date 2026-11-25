@@ -70,7 +70,7 @@ test('API locale : sessions, permissions, validation, parties et persistance', a
 
     await t.test('les contributions nécessitent une validation et les imports sont atomiques', async () => {
       assert.equal((await student.request('/questions', 'POST', input)).status, 403)
-      assert.equal((await contributor.request('/questions', 'POST', { ...input, status: 'published' })).status, 400)
+      assert.equal((await contributor.request('/questions', 'POST', { ...input, status: 'published' })).status, 403)
       const created = await contributor.request('/questions', 'POST', input)
       assert.equal(created.status, 201)
       const id = created.body.id
