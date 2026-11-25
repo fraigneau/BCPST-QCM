@@ -102,7 +102,7 @@ do $$
 declare
   profile jsonb;
 begin
-  if (select count(*) from public.chapters) <> 5 then raise exception 'FAIL: five chapters expected'; end if;
+  if (select count(*) from public.chapters where id in ('cellulaire','vegetale','physiologie','geologie','ecologie')) <> 5 then raise exception 'FAIL: foundation chapters missing'; end if;
   if (select count(*) from public.profiles) <> 1 then raise exception 'FAIL: other profiles visible'; end if;
   profile := public.current_profile();
   if profile ->> 'id' <> (select id::text from foundation_fixture where label = 'student') or profile ->> 'role' <> 'student' then

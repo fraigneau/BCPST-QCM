@@ -151,3 +151,9 @@ Les 110 tests Node passent, avec build et `pages:check`. Les contrats Question/Q
 Les sept suites SQL passent après la nouvelle migration dans PGlite avec rôles PostgreSQL et schémas Auth/Storage minimaux. La suite `0007_without_pedagogical_text.sql` vérifie l’absence des deux colonnes supprimées, les créations sans texte et sans source, la publication et le score solo. Cela ne constitue pas une validation Supabase distante. Aucun accès Supabase connecté n’était disponible pour cette préparation ; la migration n’a pas été appliquée à distance.
 
 Un parcours Chromium local à 390 px vérifie l’absence des champs pédagogiques et de sélection de source, la création depuis le bouton de variante et la création manuelle d’un QCS autonome, sans erreur JavaScript ni débordement horizontal. Les champs pédagogiques sont également absents en solo.
+
+## Recette Supabase du 25 novembre 2026
+
+La migration supprimant les textes pédagogiques est appliquée sous la version `20261125130258`. Les sept suites SQL passent sur le projet réel, toutes avec rollback. Deux anciennes assertions exigeant exactement cinq chapitres ont été adaptées à la présence de chapitres personnalisés : les chapitres initiaux doivent exister et le bootstrap doit retourner autant de chapitres/compteurs que la table visible. Le premier essai de fondation avait échoué sur cette hypothèse obsolète ; aucune donnée de cette transaction n’a été conservée.
+
+La comparaison avec la sauvegarde confirme la conservation exacte des 50 questions, 50 clés, 70 snapshots, 9 chapitres, 7 parties et 52 réponses, en retirant uniquement les textes pédagogiques. Les créations sans explication et sans source obligatoire, la publication et le score solo passent via les RPC sous rôles authentifiés de test. Cette validation SQL ne constitue pas un parcours navigateur avec le compte personnel du propriétaire. Aucun déploiement frontend n’a été déclenché pour cette opération.

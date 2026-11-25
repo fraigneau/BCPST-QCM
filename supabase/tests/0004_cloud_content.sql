@@ -30,12 +30,12 @@ begin
   result := public.qcm_content('bootstrap');
   if result #>> '{user,id}' <> (select id::text from content_fixture where label = 'student')
     or result #>> '{user,role}' <> 'student'
-    or jsonb_array_length(result -> 'chapters') <> 5
+    or jsonb_array_length(result -> 'chapters') <> (select count(*) from public.chapters)
     or not (result -> 'progress') ?& array['totalPoints','answered','correct','accuracy','gamesPlayed','streak','chapters','recentGames','mistakes','daily']
-    or (select count(*) from jsonb_object_keys(result -> 'counts')) <> 5 then
+    or (select count(*) from jsonb_object_keys(result -> 'counts')) <> (select count(*) from public.chapters) then
     raise exception 'FAIL: student bootstrap contract';
   end if;
-  if jsonb_array_length(public.qcm_content('chapters')) <> 5 then raise exception 'FAIL: chapter list'; end if;
+  if jsonb_array_length(public.qcm_content('chapters')) <> (select count(*) from public.chapters) then raise exception 'FAIL: chapter list'; end if;
   begin
     perform public.qcm_content('questions');
     raise exception 'FAIL: student question keys exposed';
